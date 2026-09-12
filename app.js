@@ -339,6 +339,7 @@ const STR = {
     'This is the same list as “Matter members” on the detail page: whoever is ticked can see the matter.',
     'Es la misma lista que «Miembros del asunto»: quien esté marcado puede ver el asunto.'],
   'form.custom': ['自定义…', 'Custom…', 'Personalizado…'],
+  'form.customAreaPh': ['输入业务类型', 'Type a practice area', 'Escribe un área de práctica'],
   'form.customStagePh': ['输入阶段名称', 'Type a stage name', 'Escribe una etapa'],
   'form.customWaitPh': ['输入在等谁', 'Type who you are waiting on', 'Escribe a quién esperas'],
   'toast.needCustom': ['选了「自定义」，请把内容填上', 'You picked “Custom” — please fill it in', 'Elegiste «Personalizado»: escribe el valor'],
@@ -464,7 +465,7 @@ function stageLabel(s) {
 function selectWithCustom(attr, value, options, placeholder) {
   const known = options.some(o => o.v === value);
   const isCustom = !!value && !known;
-  const customAttr = attr.replace(/(data-field|name)="([^"]+)"/, '$1="$2Custom"');
+  const customAttr = attr.replace(/(data-field|name)="([^"]+)"/, '$1="$2Custom"').replace(/\s+data-area-picker\b/, '');
   return `
     <select ${attr} data-custom-select>
       ${options.map(o => `<option value="${esc(o.v)}" ${o.v === value ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}
@@ -480,6 +481,7 @@ function resolveCustom(value, customValue) {
 }
 function stageOptions() { return STAGES.map(s => ({ v: s, t: stageLabel(s) })); }
 function waitingOptions() { return WAITING.map(w => ({ v: w, t: waitLabel(w) })); }
+function practiceAreaOptions() { return PRACTICE_AREAS.map(a => ({ v: a.id, t: a.name })); }
 function statusName(k) { return t('status.' + k); }
 function statusShort(k) { return t('status.' + k + '.short'); }
 
@@ -1153,7 +1155,9 @@ function viewMatters() {
     .concat(arr.map(o => `<option value="${esc(o.v)}" ${val === o.v ? 'selected' : ''}>${esc(o.t)}</option>`)).join('');
   // 筛选只列出这个账号真的看得见的内容，避免出现永远是空的筛选项
   const seen = visibleMatters(currentUser());
-  const areaOpts = PRACTICE_AREAS.filter(a => seen.some(m => m.area === a.id)).map(a => ({ v: a.id, t: a.name }));
+  const areaOpts = [...new Set(seen.map(m => m.area).filter(Boolean))]
+    .map(area => ({ v: area, t: (AREA[area] || {}).name || area }))
+    .sort((a, b) => String(a.t).localeCompare(String(b.t)));
   const ownerOpts = USERS.filter(u => seen.some(m => m.owner === u.id)).map(u => ({ v: u.id, t: u.name }));
   const statusOpts = ['red', 'yellow', 'green'].map(k => ({ v: k, t: STATUS[k].dot + ' ' + statusShort(k) }));
   // 等待谁的筛选项按实际用到的值生成，自定义填的也会出现在这里
@@ -1226,8 +1230,7 @@ function viewMatter(id) {
   const myLogs = logs.filter(l => String(l.matterId) === String(m.id)).sort((a, b) => b.at - a.at);
   const steps = stepsOf(m);
   const last = lastStep(m);
-  const areaOpts = PRACTICE_AREAS.map(a =>
-    `<option value="${a.id}" ${m.area === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+  const areaField = selectWithCustom('data-field="area" data-area-picker', m.area, practiceAreaOptions(), t('form.customAreaPh'));
   const ownerOpts = USERS.map(x => `<option value="${x.id}" ${m.owner === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   const nextOwnerOpts = USERS.map(x => `<option value="${x.id}" ${m.nextOwner === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   const stageField = selectWithCustom('data-field="stage"', m.stage, stageOptions(), t('form.customStagePh'));
@@ -1260,7 +1263,7 @@ function viewMatter(id) {
           <div class="grid-2">
             <div class="field"><label>${esc(t('detail.client'))}</label><input data-field="client" value="${esc(L(m.client))}"></div>
             <div class="field"><label>${esc(t('detail.title'))}</label><input data-field="title" value="${esc(L(m.title))}"></div>
-            <div class="field"><label>${esc(t('detail.area'))}</label><select data-field="area" data-area-picker>${areaOpts}</select>
+            <div class="field"><label>${esc(t('detail.area'))}</label>${areaField}
               <div class="hint">${esc(t('detail.areaHint'))}</div></div>
             <div class="field"><label>${esc(t('detail.stage'))}</label>${stageField}</div>
             <div class="field"><label>${esc(t('detail.owner'))}</label><select data-field="owner">${ownerOpts}</select></div>
@@ -1602,7 +1605,7 @@ function renderModal() {
 
 function modalNewMatter() {
   if (!state.modal || state.modal.type !== 'new-matter') return '';
-  const areaOpts = PRACTICE_AREAS.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+  const areaField = selectWithCustom('name="area" data-area-picker', PRACTICE_AREAS[0].id, practiceAreaOptions(), t('form.customAreaPh'));
   const ownerOpts = USERS.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
   const nextOwnerOpts = ownerOpts;
   const stageField = selectWithCustom('name="stage"', STAGES[0], stageOptions(), t('form.customStagePh'));
@@ -1617,7 +1620,7 @@ function modalNewMatter() {
           <div class="grid-2">
             <div class="field"><label class="req">${esc(t('detail.client'))}</label><input name="client" required></div>
             <div class="field"><label class="req">${esc(t('detail.title'))}</label><input name="title" required></div>
-            <div class="field"><label class="req">${esc(t('detail.area'))}</label><select name="area" data-area-picker>${areaOpts}</select></div>
+            <div class="field"><label class="req">${esc(t('detail.area'))}</label>${areaField}</div>
             <div class="field"><label class="req">${esc(t('detail.owner'))}</label><select name="owner">${ownerOpts}</select></div>
             <div class="field"><label class="req">${esc(t('detail.stage'))}</label>${stageField}</div>
             <div class="field"><label class="req">${esc(t('detail.status'))}</label><select name="status">${statusOpts}</select></div>
@@ -1777,13 +1780,14 @@ function createMatter(data) {
   if ((data.status === 'red' || data.status === 'yellow') && !String(data.reason || '').trim()) { toast(t('toast.needReason')); return false; }
   const stage = resolveCustom(data.stage, data.stageCustom);
   const waiting = resolveCustom(data.waiting, data.waitingCustom);
-  if (stage === null || waiting === null) { toast(t('toast.needCustom')); return false; }
+  const area = resolveCustom(data.area, data.areaCustom);
+  if (area === null || stage === null || waiting === null) { toast(t('toast.needCustom')); return false; }
   seq += 1;
   const id = seq;
-  const team = (data.team && data.team.length) ? data.team.slice() : defaultTeam(data.area);
+  const team = (data.team && data.team.length) ? data.team.slice() : defaultTeam(area);
   const m = {
     id, no: `2026-${String(id).padStart(3, '0')}`,
-    client: data.client, title: data.title, area: data.area,
+    client: data.client, title: data.title, area,
     owner: data.owner, team,
     stage: stage || STAGES[0], status: data.status, reason: data.reason || '',
     next: data.next, nextOwner: data.nextOwner || data.owner,
@@ -1813,13 +1817,14 @@ function saveMatterFromDom(id) {
   };
 
   // 选了「自定义…」就必须填内容，先校验再改数据
-  if ((get('stage') === '__custom__' && !String(get('stageCustom') || '').trim()) ||
+  if ((get('area') === '__custom__' && !String(get('areaCustom') || '').trim()) ||
+      (get('stage') === '__custom__' && !String(get('stageCustom') || '').trim()) ||
       (get('waiting') === '__custom__' && !String(get('waitingCustom') || '').trim())) {
     toast(t('toast.needCustom')); return;
   }
   ['client', 'title', 'area', 'stage', 'owner', 'nextOwner', 'status', 'due', 'waiting', 'lastContact', 'next', 'reason', 'notes'].forEach(f => {
     let v;
-    if (f === 'stage' || f === 'waiting') {
+    if (f === 'area' || f === 'stage' || f === 'waiting') {
       v = resolveCustom(get(f), get(f + 'Custom'));
       if (v === null) return;
     } else {
@@ -2107,7 +2112,7 @@ document.addEventListener('click', ev => {
 });
 
 document.addEventListener('change', ev => {
-  // 阶段 / 等待谁 选了「自定义…」就露出输入框
+  // 业务类型 / 阶段 / 等待谁 选了「自定义…」就露出输入框
   const custom = ev.target.closest('[data-custom-select]');
   if (custom) {
     const box = custom.parentElement;
@@ -2117,7 +2122,7 @@ document.addEventListener('change', ev => {
       input.style.display = on ? '' : 'none';
       if (on) input.focus();
     }
-    return;
+    if (!ev.target.closest('[data-area-picker]')) return;
   }
   // 换业务类型 → 自动套用该类事项的默认项目成员
   const picker = ev.target.closest('[data-area-picker]');
