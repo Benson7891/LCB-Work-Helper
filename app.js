@@ -113,7 +113,10 @@ const STR = {
   'list.desc': ['共 {n} 条', '{n} matters', '{n} asuntos'],
   'list.descAdmin': ['（管理员，全部事项）', '(admin, all matters)', '(administradora, todos los asuntos)'],
   'list.descMember': ['（只含你是项目成员的事项）', '(only matters you are assigned to)', '(solo asuntos en los que participas)'],
-  'list.export': ['导出 CSV', 'Export CSV', 'Exportar CSV'],
+  'list.export': ['导出CSV表格', 'Export CSV spreadsheet', 'Exportar tabla CSV'],
+  'modal.export.title': ['导出CSV表格', 'Export CSV spreadsheet', 'Exportar tabla CSV'],
+  'modal.export.body': ['CSV 表格可用 Excel 打开。', 'CSV spreadsheets can be opened in Excel.', 'Las tablas CSV se pueden abrir con Excel.'],
+  'modal.export.confirm': ['下载CSV表格', 'Download CSV', 'Descargar CSV'],
   'list.search': ['搜索客户、事项、下一步…', 'Search client, matter, next step…', 'Buscar cliente, asunto, próximo paso…'],
   'list.allAreas': ['全部业务类型', 'All practice areas', 'Todas las áreas'],
   'list.allOwners': ['全部负责人', 'All owners', 'Todos los responsables'],
@@ -149,6 +152,7 @@ const STR = {
   'wait.carol': ['Carol', 'Carol', 'Carol'],
   'wait.carlos': ['Carlos Dávila', 'Carlos Dávila', 'Carlos Dávila'],
   'wait.hector': ['Héctor Luján Medina', 'Héctor Luján Medina', 'Héctor Luján Medina'],
+  'wait.other': ['其他', 'Other', 'Otro'],
 
   'stage.engagement': ['立项委托', 'Engagement', 'Encargo'],
   'stage.dd': ['尽职调查', 'Due diligence', 'Due diligence'],
@@ -481,19 +485,21 @@ function resolveCustom(value, customValue) {
 }
 function stageOptions() { return STAGES.map(s => ({ v: s, t: stageLabel(s) })); }
 function waitingOptions() { return WAITING.map(w => ({ v: w, t: waitLabel(w) })); }
-function practiceAreaOptions() { return PRACTICE_AREAS.map(a => ({ v: a.id, t: a.name })); }
+function practiceAreaOptions() { return PRACTICE_AREAS.map(a => ({ v: a.id, t: areaName(a.id) })); }
 function statusName(k) { return t('status.' + k); }
 function statusShort(k) { return t('status.' + k + '.short'); }
 
 const PRACTICE_AREAS = [
-  { id: 'mx_invest', name: 'Mexico Corporate / Investment', restricted: false },
-  { id: 'mx_reg', name: 'Mexico Regulatory', restricted: false },
-  { id: 'sanctions', name: 'Sanctions / U.S.', restricted: true, members: ['carol', 'carlos'] },
-  { id: 'aml', name: 'AML / Cross-border Payments', restricted: false },
-  { id: 'dispute', name: 'Dispute Resolution', restricted: false },
-  { id: 'internal', name: 'Internal Project', restricted: false },
+  { id: 'mx_invest', name: { zh: '墨西哥公司／投资', en: 'Mexico Corporate / Investment', es: 'Corporativo / Inversión en México' }, restricted: false },
+  { id: 'mx_reg', name: { zh: '墨西哥监管', en: 'Mexico Regulatory', es: 'Regulación en México' }, restricted: false },
+  { id: 'sanctions', name: { zh: '制裁／涉美', en: 'Sanctions / U.S.', es: 'Sanciones / EE. UU.' }, restricted: true, members: ['carol', 'carlos'] },
+  { id: 'aml', name: { zh: '反洗钱／跨境支付', en: 'AML / Cross-border Payments', es: 'Prevención de lavado / Pagos transfronterizos' }, restricted: false },
+  { id: 'dispute', name: { zh: '争议解决', en: 'Dispute Resolution', es: 'Resolución de disputas' }, restricted: false },
+  { id: 'internal', name: { zh: '内部项目', en: 'Internal Project', es: 'Proyecto interno' }, restricted: false },
+  { id: 'other', name: { zh: '其他', en: 'Other', es: 'Otro' }, restricted: false },
 ];
 const AREA = Object.fromEntries(PRACTICE_AREAS.map(a => [a.id, a]));
+function areaName(id) { return AREA[id] ? L(AREA[id].name) : (id || ''); }
 
 const USERS = [
   { id: 'carol', name: 'Carol', short: 'C', email: '13726111370@163.com', password: '[REDACTED]', roleKey: 'role.carol', admin: true },
@@ -514,7 +520,7 @@ const STAGE_KEY = {
   'Closing': 'stage.closing',
   'On Hold': 'stage.hold',
 };
-const WAITING = ['none', 'client', 'counterparty', 'authority', 'notary', 'bank', 'ofac', 'tax', 'carol', 'carlos', 'hector'];
+const WAITING = ['none', 'client', 'counterparty', 'authority', 'notary', 'bank', 'ofac', 'tax', 'carol', 'carlos', 'hector', 'other'];
 
 const STATUS = {
   green: { dot: '🟢', cls: 's-green' },
@@ -736,9 +742,9 @@ function seedLogs() {
 
 /* ------------------------------ 运行时状态 ------------------------------ */
 
-let matters = load(KEY.matters, null) || seedMatters();
-let logs = load(KEY.logs, null) || seedLogs();
-let seq = load(KEY.seq, 40);
+let matters = load(KEY.matters, null) || [];
+let logs = load(KEY.logs, null) || [];
+let seq = load(KEY.seq, 0);
 let session = load(KEY.session, null);   // { userId }
 const state = {
   filters: { q: '', area: '', owner: '', status: '', waiting: '' },
@@ -783,17 +789,11 @@ async function pullRemote(opts) {
     const lRows = lRes.ok ? await lRes.json() : [];
     const metaRows = metaRes.ok ? await metaRes.json() : [];
 
-    if (!mRows.length && opts && opts.initial) {
-      // 远端还是空的：把这台设备上的演示数据推上去当初始版本
-      sync.busy = false;
-      await pushRemote();
-      return;
-    }
     matters = mRows.map(r => r.data);
     logs = lRows.map(r => r.data);
     sync.syncedLogs = new Set(logs.map(l => l.id));
     const seqRow = metaRows.filter(r => r.key === 'seq')[0];
-    if (seqRow && typeof seqRow.value === 'number') seq = Math.max(seq, seqRow.value);
+    if (seqRow && typeof seqRow.value === 'number') seq = seqRow.value;
     save(KEY.matters, matters);
     save(KEY.logs, logs);
     save(KEY.seq, seq);
@@ -946,7 +946,7 @@ function statusChip(s) {
   return `<span class="chip ${st.cls}">${st.dot} ${esc(statusShort(s))}</span>`;
 }
 function areaTag(id) {
-  return `<span class="tag tag-area">${esc((AREA[id] || {}).name || id)}</span>`;
+  return `<span class="tag tag-area">${esc(areaName(id))}</span>`;
 }
 function teamTags(ids) {
   return (ids || []).map(id => `<span class="tag">${esc((USER[id] || {}).name || id)}</span>`).join('');
@@ -1155,13 +1155,13 @@ function viewMatters() {
     .concat(arr.map(o => `<option value="${esc(o.v)}" ${val === o.v ? 'selected' : ''}>${esc(o.t)}</option>`)).join('');
   // 筛选只列出这个账号真的看得见的内容，避免出现永远是空的筛选项
   const seen = visibleMatters(currentUser());
-  const areaOpts = [...new Set(seen.map(m => m.area).filter(Boolean))]
-    .map(area => ({ v: area, t: (AREA[area] || {}).name || area }))
+  const areaOpts = [...new Set([...seen.map(m => m.area).filter(Boolean), 'other'])]
+    .map(area => ({ v: area, t: areaName(area) }))
     .sort((a, b) => String(a.t).localeCompare(String(b.t)));
   const ownerOpts = USERS.filter(u => seen.some(m => m.owner === u.id)).map(u => ({ v: u.id, t: u.name }));
   const statusOpts = ['red', 'yellow', 'green'].map(k => ({ v: k, t: STATUS[k].dot + ' ' + statusShort(k) }));
   // 等待谁的筛选项按实际用到的值生成，自定义填的也会出现在这里
-  const waitingOpts = [...new Set(seen.map(m => m.waiting).filter(w => w && w !== 'none'))]
+  const waitingOpts = [...new Set([...seen.map(m => m.waiting).filter(w => w && w !== 'none'), 'other'])]
     .map(w => ({ v: w, t: waitLabel(w) }))
     .sort((a, b) => String(a.t).localeCompare(String(b.t)));
   const n = sorted(filterMatters()).length;
@@ -1424,7 +1424,7 @@ function viewSettings() {
       const ok = ids.includes(u.id);
       return `<td class="${ok ? 'yes' : 'no'}">${ok ? '✓' : '—'}</td>`;
     }).join('');
-    return `<tr><td>${esc(a.name)}</td>${cells}</tr>`;
+    return `<tr><td>${esc(areaName(a.id))}</td>${cells}</tr>`;
   }).join('');
 
   return `
@@ -1432,9 +1432,6 @@ function viewSettings() {
       <div>
         <h1>${esc(t('settings.title'))}</h1>
         <div class="desc">${esc(t('settings.desc'))}</div>
-      </div>
-      <div class="right">
-        <button class="btn btn-danger" type="button" data-action="reset-demo">${esc(t('settings.reset'))}</button>
       </div>
     </div>
     <div class="notice">${esc(t('settings.notice'))}</div>
@@ -1796,7 +1793,7 @@ function createMatter(data) {
   };
   if (!m.team.includes(m.owner)) m.team.push(m.owner);
   matters.push(m);
-  addLogKey(id, currentUser().id, 'detail.entry.new', { no: m.no, area: (AREA[m.area] || {}).name || m.area });
+  addLogKey(id, currentUser().id, 'detail.entry.new', { no: m.no, area: areaName(m.area) });
   commit();
   toast(t('toast.created', { no: m.no }));
   return m;
@@ -1859,7 +1856,7 @@ function exportCSV(onlyId) {
   const head = ['csv.no', 'csv.client', 'csv.title', 'csv.area', 'csv.owner', 'csv.status', 'csv.stage',
     'csv.next', 'csv.nextOwner', 'csv.due', 'csv.waiting', 'csv.lastContact', 'csv.notes'].map(k => t(k));
   const rows = list.map(m => [
-    m.no, L(m.client), L(m.title), (AREA[m.area] || {}).name || m.area, USER[m.owner].name,
+    m.no, L(m.client), L(m.title), areaName(m.area), USER[m.owner].name,
     statusName(m.status), stageLabel(m.stage), L(m.next), USER[m.nextOwner] ? USER[m.nextOwner].name : m.nextOwner,
     m.due, waitLabel(m.waiting), m.lastContact, L(m.notes),
   ]);
@@ -1947,30 +1944,25 @@ document.addEventListener('click', ev => {
     case 'clear-filters':
       state.filters = { q: '', area: '', owner: '', status: '', waiting: '' }; render(); break;
     case 'export-csv':
-      exportCSV(el.getAttribute('data-id')); break;
-    case 'print':
-      window.print(); break;
-    case 'reset-demo':
       state.modal = {
         type: 'confirm',
-        titleKey: 'modal.reset.title',
-        body: t('modal.reset.body'),
-        confirmKey: 'modal.reset.confirm',
-        danger: true,
-        action: 'confirm-reset',
+        titleKey: 'modal.export.title',
+        body: t('modal.export.body'),
+        confirmKey: 'modal.export.confirm',
+        action: 'confirm-export',
+        id: el.getAttribute('data-id'),
       };
       render();
       break;
-    case 'confirm-reset':
-      matters = seedMatters();
-      logs = seedLogs();
-      seq = 40;
-      commit();
+    case 'confirm-export': {
+      const id = el.getAttribute('data-id');
       state.modal = null;
-      go('#/');
       render();
-      toast(t('toast.reset'));
+      exportCSV(id);
       break;
+    }
+    case 'print':
+      window.print(); break;
     case 'delete-matter': {
       const id = el.getAttribute('data-id');
       const m = matterById(id);
@@ -2211,7 +2203,7 @@ document.addEventListener('keydown', ev => {
 
 /* ------------------------------ 启动 ------------------------------ */
 
-// 本地还没有缓存时，只把演示数据写进本机（先不推服务器——远端可能已经有团队的数据）
+// 本地还没有缓存时，从空列表开始；联网后会拉取团队数据。
 if (!load(KEY.matters, null)) {
   save(KEY.matters, matters);
   save(KEY.logs, logs);
