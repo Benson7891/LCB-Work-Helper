@@ -74,6 +74,9 @@ input,select,textarea{font:inherit;color:inherit}
 .nav{display:flex;gap:2px;margin-left:6px;overflow-x:auto;scrollbar-width:none}
 .nav::-webkit-scrollbar{display:none}
 .nav a{padding:7px 12px;border-radius:9px;color:var(--ink-2);font-size:14px;white-space:nowrap}
+.nav-label{position:relative;display:inline-block}
+.nav-count{position:absolute;right:-11px;top:-8px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;
+  display:inline-flex;align-items:center;justify-content:center;background:var(--brand);color:#fff;font-size:10px;font-weight:700;line-height:1}
 .nav a:hover{background:#f0f4f9;color:var(--ink)}
 .nav a.active{background:var(--brand-soft);color:var(--brand);font-weight:600}
 .topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}

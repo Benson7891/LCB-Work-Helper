@@ -66,7 +66,8 @@ const STR = {
   'nav.dashboard': ['工作台', 'Dashboard', 'Panel'],
   'nav.matters': ['事项', 'Matters', 'Asuntos'],
   'nav.weekly': ['每周视图', 'Weekly', 'Semanal'],
-  'nav.settings': ['设置', 'Settings', 'Ajustes'],
+  'nav.settings': ['信息', 'Info', 'Información'],
+  'nav.trash': ['回收站', 'Recycle bin', 'Papelera'],
   'topbar.signout': ['退出登录', 'Sign out', 'Cerrar sesión'],
   'topbar.switch': ['点一下切换到下一个账号（演示权限用）', 'Click to switch to the next account (to demo permissions)', 'Haz clic para cambiar a la siguiente cuenta (para probar permisos)'],
   'banner.noStorage': ['⚠️ 这个浏览器不允许网页在本机保存数据，所以你现在改的东西刷新后会丢。换成 GitHub Pages 网址打开，或者用 Chrome 打开这个文件就正常了。',
@@ -96,7 +97,7 @@ const STR = {
   'dash.kpi.due': ['📅 本周到期', '📅 Due this week', '📅 Vencen esta semana'],
   'dash.kpi.dueFoot': ['7 天内截止', 'Due within 7 days', 'Vencen en 7 días'],
   'dash.kpi.mine': ['⏳ 等我推进', '⏳ Waiting on me', '⏳ Pendientes de mí'],
-  'dash.kpi.mineFoot': ['下一步在我这里', 'The next step is mine', 'El próximo paso es mío'],
+  'dash.kpi.mineFoot': ['我要做的事情', 'Things I need to do', 'Mis tareas'],
   'dash.kpi.visible': ['👀 我能看到', '👀 I can see', '👀 Puedo ver'],
   'dash.kpi.visibleAdmin': ['管理员 · 全部事项', 'Admin · all matters', 'Administradora · todos los asuntos'],
   'dash.kpi.visibleMember': ['仅我是项目成员的事项', 'Only matters I am assigned to', 'Solo asuntos en los que participo'],
@@ -169,7 +170,7 @@ const STR = {
   'role.hector': ['墨西哥 + 纽约双执业', 'México + New York qualified', 'Abogado en México y Nueva York'],
 
   'back.toList': ['← 返回事项列表', '← Back to matters', '← Volver a asuntos'],
-  'back.toSettings': ['← 返回设置', '← Back to settings', '← Volver a ajustes'],
+  'back.toSettings': ['← 返回回收站', '← Back to recycle bin', '← Volver a la papelera'],
   'back.toDashboard': ['← 回到工作台', '← Back to dashboard', '← Volver al panel'],
 
   'detail.info': ['事项信息', 'Matter details', 'Datos del asunto'],
@@ -209,7 +210,7 @@ const STR = {
   'detail.trashTitle': ['这条事项在回收站里', 'This matter is in the recycle bin', 'Este asunto está en la papelera'],
   'detail.trashWhen': ['删除时间：{when}', 'Deleted: {when}', 'Eliminado: {when}'],
   'detail.trashRestore': ['恢复这条事项', 'Restore this matter', 'Restaurar este asunto'],
-  'detail.trashAdminOnly': ['只有管理员可以恢复事项。', 'Only an admin can restore matters.', 'Solo la administradora puede restaurar asuntos.'],
+  'detail.trashAdminOnly': ['仅事项负责人 {name} 可操作', 'Only the matter owner, {name}, can act', 'Solo el responsable, {name}, puede realizar esta acción'],
   'detail.step.title': ['当前步骤', 'Current step', 'Paso actual'],
   'detail.step.button': ['完成当前步骤 →', 'Complete this step →', 'Completar este paso →'],
   'detail.step.hintOwner': ['完成时会让你填写下一步：阶段、状态、截止日期、在等谁、下一步做什么、下一步负责人。',
@@ -269,7 +270,7 @@ const STR = {
   'weekly.waiting': ['在等谁', 'Waiting on', 'Esperando a'],
   'weekly.empty': ['没有可显示的事项。', 'Nothing to show.', 'Nada que mostrar.'],
 
-  'settings.title': ['设置', 'Settings', 'Ajustes'],
+  'settings.title': ['信息', 'Info', 'Información'],
   'settings.desc': ['成员、可见范围和编号规则。',
     'Members, visibility, and numbering.',
     'Miembros, visibilidad y numeración.'],
@@ -297,10 +298,13 @@ const STR = {
   'settings.trashMeta': ['{client} · 删除于 {when}', '{client} · deleted {when}', '{client} · eliminado {when}'],
   'settings.trashRestore': ['恢复', 'Restore', 'Restaurar'],
   'settings.trashPurge': ['彻底删除', 'Delete forever', 'Eliminar definitivamente'],
-  'settings.trashAdminOnly': ['仅管理员可操作', 'Admin only', 'Solo administradora'],
-  'settings.trashHint': ['事项只能由它的<b>项目负责人</b>删除；把事项找回来或者永久清掉，仍然由 Carol（管理员）操作。',
-    'A matter can only be deleted by its <b>owner</b>; restoring it or clearing it for good is done by Carol (admin).',
-    'Solo el <b>responsable</b> del asunto puede eliminarlo; restaurarlo o borrarlo definitivamente lo hace Carol (administradora).'],
+  'settings.trashAdminOnly': ['仅事项负责人{name}可操作', 'Only matter owner {name} can act', 'Solo el responsable {name} puede realizar esta acción'],
+  'settings.trashHint': ['恢复或彻底删除事项，只能由该事项的<b>负责人</b>操作。',
+    'Only the matter <b>owner</b> can restore or permanently delete it.',
+    'Solo el <b>responsable</b> del asunto puede restaurarlo o eliminarlo definitivamente.'],
+  'trash.desc': ['删除的事项会保留在这里；只有事项负责人可以恢复或彻底删除。',
+    'Deleted matters stay here; only the matter owner can restore or permanently delete them.',
+    'Los asuntos eliminados quedan aquí; solo su responsable puede restaurarlos o eliminarlos definitivamente.'],
   'settings.numbering': ['编号规则', 'Numbering', 'Numeración'],
   'settings.numberFormat': ['格式', 'Format', 'Formato'],
   'settings.numberFormatValue': ['年份 - 三位序号', 'Year + 3 digits', 'Año + 3 dígitos'],
@@ -400,8 +404,8 @@ const STR = {
   'toast.needFileName': ['请填写文件名', 'Please enter a file name', 'Indica el nombre del archivo'],
   'toast.onlyOwnerDelete': ['只有项目负责人 {name} 才能删除事项', 'Only the matter owner, {name}, can delete it', 'Solo el responsable, {name}, puede eliminarlo'],
   'toast.onlyStepOwner': ['只有当前步骤负责人 {name} 才能完成这一步', 'Only the current step owner, {name}, can complete it', 'Solo el responsable del paso, {name}, puede completarlo'],
-  'toast.adminRestore': ['只有管理员可以恢复事项', 'Only an admin can restore matters', 'Solo la administradora puede restaurar'],
-  'toast.adminPurge': ['只有管理员可以彻底删除事项', 'Only an admin can delete matters for good', 'Solo la administradora puede borrar definitivamente'],
+  'toast.adminRestore': ['仅事项负责人 {name} 可以恢复事项', 'Only matter owner {name} can restore it', 'Solo el responsable {name} puede restaurarlo'],
+  'toast.adminPurge': ['仅事项负责人 {name} 可以彻底删除事项', 'Only matter owner {name} can delete it permanently', 'Solo el responsable {name} puede eliminarlo definitivamente'],
   'toast.exported': ['已导出 CSV', 'CSV exported', 'CSV exportado'],
 
   'csv.filename': ['Matter总表.csv', 'Matter-board.csv', 'Tablero-de-asuntos.csv'],
@@ -884,8 +888,9 @@ function canSee(user, m) {
 function visibleMatters(user) {
   return matters.filter(m => !m.deletedAt && canSee(user, m));
 }
-function trashedMatters() {
-  return matters.filter(m => m.deletedAt).sort((a, b) => b.deletedAt - a.deletedAt);
+function trashedMatters(user) {
+  const u = user || currentUser();
+  return matters.filter(m => m.deletedAt && canSee(u, m)).sort((a, b) => b.deletedAt - a.deletedAt);
 }
 function isAdmin() {
   const u = currentUser();
@@ -1039,10 +1044,12 @@ function navFor(route) {
     ['#/matters', 'nav.matters'],
     ['#/weekly', 'nav.weekly'],
     ['#/settings', 'nav.settings'],
+    ['#/trash', 'nav.trash'],
   ];
   return items.map(([href, key]) => {
     const active = (href === '#/' && (route === '/' || route === '')) || (href !== '#/' && route.startsWith(href.slice(1)));
-    return `<a href="${href}" class="${active ? 'active' : ''}">${esc(t(key))}</a>`;
+    const badge = key === 'nav.matters' ? `<span class="nav-count">${visibleMatters(currentUser()).length}</span>` : '';
+    return `<a href="${href}" class="${active ? 'active' : ''}"><span class="nav-label">${esc(t(key))}${badge}</span></a>`;
   }).join('');
 }
 
@@ -1231,16 +1238,16 @@ function viewMatter(id) {
   }
   if (m.deletedAt) {
     return `
-      <a class="back" href="#/settings">${esc(t('back.toSettings'))}</a>
+      <a class="back" href="#/trash">${esc(t('back.toSettings'))}</a>
       <div class="page-head"><div>
         <h1>${esc(t('detail.trashTitle'))}</h1>
         <div class="desc">${esc(m.no)} · ${esc(L(m.client))} · ${esc(L(m.title))}</div>
         <div class="desc">${esc(t('detail.trashWhen', { when: fmtStamp(m.deletedAt) }))}</div>
       </div></div>
       <div class="card card-pad">
-        ${isAdmin()
+        ${currentUser().id === m.owner
           ? `<button class="btn btn-primary" type="button" data-action="restore-matter" data-id="${m.id}">${esc(t('detail.trashRestore'))}</button>`
-          : `<div class="muted">${esc(t('detail.trashAdminOnly'))}</div>`}
+          : `<div class="muted">${esc(t('detail.trashAdminOnly', { name: (USER[m.owner] || {}).name || m.owner }))}</div>`}
       </div>`;
   }
 
@@ -1407,7 +1414,6 @@ function viewWeekly() {
 /* ------------------------------ 视图：设置 ------------------------------ */
 
 function viewSettings() {
-  const trashed = trashedMatters();
   const rows = PRACTICE_AREAS.map(a => {
     const ids = defaultTeam(a.id);
     const cells = USERS.map(u => {
@@ -1450,22 +1456,6 @@ function viewSettings() {
           </table>
           <div class="hint" style="margin-top:10px">${t('settings.defaultTeamHint')}</div>
         </div>
-        <div class="card card-pad">
-          <div class="section-title">${esc(t('settings.trash'))}
-            <span class="small muted" style="margin-left:auto;font-weight:400">${esc(t('settings.trashCount', { n: trashed.length }))}</span>
-          </div>
-          ${trashed.length ? trashed.map(m => `
-            <div class="trash-row">
-              <span class="nm"><b>${esc(m.no)} ${esc(L(m.title))}</b>
-                <span class="meta">${esc(t('settings.trashMeta', { client: L(m.client), when: fmtStamp(m.deletedAt) }))}</span></span>
-              ${isAdmin() ? `
-                <button class="btn btn-sm" type="button" data-action="restore-matter" data-id="${m.id}">${esc(t('settings.trashRestore'))}</button>
-                <button class="btn btn-sm btn-danger" type="button" data-action="purge-matter" data-id="${m.id}">${esc(t('settings.trashPurge'))}</button>`
-                : `<span class="small muted">${esc(t('settings.trashAdminOnly'))}</span>`}
-            </div>`).join('')
-            : `<div class="small muted">${esc(t('settings.trashEmpty'))}</div>`}
-          <div class="hint" style="margin-top:10px">${t('settings.trashHint')}</div>
-        </div>
       </div>
       <div>
         <div class="card card-pad" style="margin-bottom:16px">
@@ -1475,6 +1465,34 @@ function viewSettings() {
           <div class="kv"><span class="k">${esc(t('settings.numberNext'))}</span><span class="v">2026-${String(seq + 1).padStart(3, '0')}</span></div>
         </div>
       </div>
+    </div>`;
+}
+
+function viewTrash() {
+  const trashed = trashedMatters();
+  const u = currentUser();
+  return `
+    <div class="page-head">
+      <div>
+        <h1>${esc(t('settings.trash'))}</h1>
+        <div class="desc">${esc(t('trash.desc'))}</div>
+      </div>
+    </div>
+    <div class="card card-pad">
+      <div class="section-title">${esc(t('settings.trash'))}
+        <span class="small muted" style="margin-left:auto;font-weight:400">${esc(t('settings.trashCount', { n: trashed.length }))}</span>
+      </div>
+      ${trashed.length ? trashed.map(m => `
+        <div class="trash-row">
+          <span class="nm"><b>${esc(m.no)} ${esc(L(m.title))}</b>
+            <span class="meta">${esc(t('settings.trashMeta', { client: L(m.client), when: fmtStamp(m.deletedAt) }))}</span></span>
+          ${u.id === m.owner ? `
+            <button class="btn btn-sm" type="button" data-action="restore-matter" data-id="${m.id}">${esc(t('settings.trashRestore'))}</button>
+            <button class="btn btn-sm btn-danger" type="button" data-action="purge-matter" data-id="${m.id}">${esc(t('settings.trashPurge'))}</button>`
+            : `<span class="small muted">${esc(t('settings.trashAdminOnly', { name: (USER[m.owner] || {}).name || m.owner }))}</span>`}
+        </div>`).join('')
+        : `<div class="small muted">${esc(t('settings.trashEmpty'))}</div>`}
+      <div class="hint" style="margin-top:10px">${t('settings.trashHint')}</div>
     </div>`;
 }
 
@@ -1653,6 +1671,7 @@ function render() {
   else if (route.startsWith('/matters')) content = viewMatters();
   else if (route.startsWith('/weekly')) content = viewWeekly();
   else if (route.startsWith('/settings')) content = viewSettings();
+  else if (route.startsWith('/trash')) content = viewTrash();
   else content = viewDashboard();
 
   app.innerHTML = shell(route, content);
@@ -2048,7 +2067,8 @@ document.addEventListener('click', ev => {
     case 'restore-matter': {
       const id = el.getAttribute('data-id');
       const m = matterById(id);
-      if (!m || !isAdmin()) { toast(t('toast.adminRestore')); break; }
+      if (!m) break;
+      if (currentUser().id !== m.owner) { toast(t('toast.adminRestore', { name: (USER[m.owner] || {}).name || m.owner })); break; }
       m.deletedAt = null;
       addLogKey(id, currentUser().id, 'detail.entry.restored');
       commit();
@@ -2060,7 +2080,8 @@ document.addEventListener('click', ev => {
     case 'purge-matter': {
       const id = el.getAttribute('data-id');
       const m = matterById(id);
-      if (!m || !isAdmin()) { toast(t('toast.adminPurge')); break; }
+      if (!m) break;
+      if (currentUser().id !== m.owner) { toast(t('toast.adminPurge', { name: (USER[m.owner] || {}).name || m.owner })); break; }
       state.modal = {
         type: 'confirm',
         titleKey: 'modal.purge.title',
@@ -2075,7 +2096,9 @@ document.addEventListener('click', ev => {
     }
     case 'confirm-purge-matter': {
       const id = el.getAttribute('data-id');
-      if (!isAdmin()) { toast(t('toast.adminPurge')); break; }
+      const m = matterById(id);
+      if (!m) break;
+      if (currentUser().id !== m.owner) { toast(t('toast.adminPurge', { name: (USER[m.owner] || {}).name || m.owner })); break; }
       sync.purged.add(String(id));
       matters = matters.filter(x => String(x.id) !== String(id));
       logs = logs.filter(l => String(l.matterId) !== String(id));
