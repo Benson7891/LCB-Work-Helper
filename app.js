@@ -155,6 +155,7 @@ const STR = {
   'wait.other': ['其他', 'Other', 'Otro'],
 
   'stage.engagement': ['立项委托', 'Engagement', 'Encargo'],
+  'stage.consultation': ['咨询', 'Consultation', 'Consulta'],
   'stage.dd': ['尽职调查', 'Due diligence', 'Due diligence'],
   'stage.research': ['法律研究', 'Legal research', 'Investigación legal'],
   'stage.drafting': ['文件起草', 'Drafting', 'Redacción'],
@@ -178,12 +179,12 @@ const STR = {
   'detail.areaHint': ['换业务类型会自动把项目成员改成该类事项的默认成员。', 'Changing the practice area resets the members to that area\'s default.', 'Al cambiar el área se restablecen los miembros predeterminados de esa área.'],
   'detail.stage': ['当前阶段', 'Current stage', 'Etapa actual'],
   'detail.owner': ['负责人（唯一）', 'Owner (one only)', 'Responsable (único)'],
-  'detail.nextOwner': ['下一步负责人', 'Owner of the next step', 'Responsable del próximo paso'],
+  'detail.nextOwner': ['谁做这一步？', 'Who will do this step?', '¿Quién hará este paso?'],
   'detail.status': ['状态', 'Status', 'Estado'],
   'detail.due': ['截止日期', 'Due date', 'Fecha límite'],
   'detail.waiting': ['等待谁', 'Waiting for', 'Esperando a'],
   'detail.lastContact': ['最后联系客户', 'Last client contact', 'Último contacto con el cliente'],
-  'detail.next': ['下一步（一句话）', 'Next step (one line)', 'Próximo paso (una línea)'],
+  'detail.next': ['现在要做什么？', 'What needs to be done now?', '¿Qué hay que hacer ahora?'],
   'detail.reason': ['状态说明（黄／红必填）', 'Status note (required for yellow / red)', 'Nota de estado (obligatoria si es amarillo o rojo)'],
   'detail.reasonPh': ['例如：等墨方土地意见，客户在催', 'e.g. Waiting on the land opinion; client is chasing', 'p. ej. Esperando la opinión del terreno; el cliente insiste'],
   'form.reasonPh': ['为什么急', 'Why is it urgent?', '¿Por qué es urgente?'],
@@ -306,7 +307,6 @@ const STR = {
   'settings.numberExample': ['示例', 'Example', 'Ejemplo'],
   'settings.numberNext': ['下一条编号', 'Next number', 'Próximo número'],
   'modal.new.title': ['新建事项', 'New matter', 'Nuevo asunto'],
-  'modal.new.stage': ['现在要做什么？', 'What needs to be done now?', '¿Qué hay que hacer ahora?'],
   'modal.new.submit': ['创建事项', 'Create matter', 'Crear asunto'],
   'modal.new.membersHint': ['只有勾进来的人能打开这条事项。制裁／涉美事项通常只勾 Carol 与 Carlos，换业务类型会自动改默认值。',
     'Only ticked people can open this matter. Sanctions / US matters usually tick only Carol and Carlos; changing the area resets the defaults.',
@@ -319,6 +319,7 @@ const STR = {
   'modal.file.submit': ['添加', 'Add', 'Añadir'],
   'modal.complete.title': ['完成当前步骤', 'Complete the current step', 'Completar el paso actual'],
   'modal.complete.stage': ['现在这一步要做什么？', 'What needs to be done in this step?', '¿Qué hay que hacer en este paso?'],
+  'modal.complete.nextOwner': ['下一步负责人', 'Owner of the next step', 'Responsable del próximo paso'],
   'modal.complete.aboutTo': ['即将完成这一步', 'About to complete', 'A punto de completar'],
   'modal.complete.afterHint': ['填完了，这条事项就进入下一步。下面填的是<b>完成之后</b>的新状态。',
     'Once you save, the matter moves to the next step. Fill in the new state <b>after</b> completion.',
@@ -497,10 +498,11 @@ const USERS = [
 ];
 const USER = Object.fromEntries(USERS.map(u => [u.id, u]));
 
-const STAGES = ['Engagement', 'Due Diligence', 'Legal Research', 'Drafting', 'Filing / Submission', 'Government Review', 'Closing', 'On Hold'];
+const STAGES = ['Engagement', 'Consultation', 'Due Diligence', 'Legal Research', 'Drafting', 'Filing / Submission', 'Government Review', 'Closing', 'On Hold'];
 // 阶段在数据里统一存英文原值，界面上按语言显示
 const STAGE_KEY = {
   'Engagement': 'stage.engagement',
+  'Consultation': 'stage.consultation',
   'Due Diligence': 'stage.dd',
   'Legal Research': 'stage.research',
   'Drafting': 'stage.drafting',
@@ -1207,6 +1209,9 @@ function viewMatters() {
         <tbody id="matter-rows">${matterRowsHTML() || ''}</tbody>
       </table>
       <div class="empty" id="matter-empty" style="${sorted(filterMatters()).length ? 'display:none' : ''}">${esc(t('list.empty'))}</div>
+    </div>
+    <div class="legend">
+      <span>${esc(t('legend.green'))}</span><span>${esc(t('legend.yellow'))}</span><span>${esc(t('legend.red'))}</span>
     </div>`;
 }
 
@@ -1540,7 +1545,7 @@ function modalCompleteStep(mo) {
        </div>
        <div class="field"><label class="req">${esc(t('form.next'))}</label>
          <input name="next" autocomplete="off" placeholder="${esc(t('form.nextPh'))}"></div>
-       <div class="field"><label class="req">${esc(t('detail.nextOwner'))}</label><select name="nextOwner">${ownerOpts}</select></div>
+       <div class="field"><label class="req">${esc(t('modal.complete.nextOwner'))}</label><select name="nextOwner">${ownerOpts}</select></div>
        <div class="field"><label>${esc(t('detail.reason'))}</label>
          <input name="reason" autocomplete="off" value="" placeholder="${esc(t('form.reasonPh'))}"></div>
        <div class="field"><label>${esc(t('form.stepMembers'))}</label>
@@ -1599,7 +1604,7 @@ function modalNewMatter() {
             <div class="field"><label class="req">${esc(t('detail.title'))}</label><input name="title" required></div>
             <div class="field"><label class="req">${esc(t('detail.area'))}</label>${areaField}</div>
             <div class="field"><label class="req">${esc(t('detail.owner'))}</label><select name="owner">${ownerOpts}</select></div>
-            <div class="field"><label class="req">${esc(t('modal.new.stage'))}</label>${stageField}</div>
+            <div class="field"><label class="req">${esc(t('detail.stage'))}</label>${stageField}</div>
             <div class="field"><label class="req">${esc(t('detail.status'))}</label><select name="status">${statusOpts}</select></div>
             <div class="field"><label class="req">${esc(t('detail.due'))}</label><input type="date" name="due" required></div>
             <div class="field"><label>${esc(t('detail.waiting'))}</label>${waitField}</div>
