@@ -305,19 +305,6 @@ const STR = {
   'settings.numberFormatValue': ['年份 - 三位序号', 'Year + 3 digits', 'Año + 3 dígitos'],
   'settings.numberExample': ['示例', 'Example', 'Ejemplo'],
   'settings.numberNext': ['下一条编号', 'Next number', 'Próximo número'],
-  'settings.digest': ['每日提醒（预览）', 'Daily reminder (preview)', 'Aviso diario (vista previa)'],
-  'settings.digestHint': ['每天早上 8:30 发给当前登录的人。接后端后改为真实邮件。',
-    'Sent to the signed-in person every day at 8:30. It becomes a real email once there is a backend.',
-    'Se envía cada día a las 8:30 a la persona conectada. Será un correo real cuando haya backend.'],
-  'digest.head': ['【{team} · 每日提醒】', '[{team} · Daily reminder]', '[{team} · Aviso diario]'],
-  'digest.red': ['红色事项（{n}）', 'Red matters ({n})', 'Asuntos rojos ({n})'],
-  'digest.due': ['本周到期（{n}）', 'Due this week ({n})', 'Vencen esta semana ({n})'],
-  'digest.mine': ['等我推进（{n}）', 'Waiting on me ({n})', 'Pendientes de mí ({n})'],
-  'digest.none': ['· 无', '· none', '· ninguno'],
-  'digest.line': ['· {no} {title}｜负责人 {owner}｜{next}｜{due}（{rel}）', '· {no} {title} | owner {owner} | {next} | {due} ({rel})', '· {no} {title} | responsable {owner} | {next} | {due} ({rel})'],
-  'digest.line2': ['· {no} {title}｜{due}（{rel}）', '· {no} {title} | {due} ({rel})', '· {no} {title} | {due} ({rel})'],
-  'digest.line3': ['· {no} {title}｜{next}｜{due}', '· {no} {title} | {next} | {due}', '· {no} {title} | {next} | {due}'],
-
   'modal.new.title': ['新建事项', 'New matter', 'Nuevo asunto'],
   'modal.new.submit': ['创建事项', 'Create matter', 'Crear asunto'],
   'modal.new.membersHint': ['只有勾进来的人能打开这条事项。制裁／涉美事项通常只勾 Carol 与 Carlos，换业务类型会自动改默认值。',
@@ -1389,33 +1376,6 @@ function viewWeekly() {
 
 /* ------------------------------ 视图：设置 ------------------------------ */
 
-function dailyDigest() {
-  const u = currentUser();
-  const list = visibleMatters(u);
-  const red = sorted(list.filter(m => m.status === 'red'));
-  const due = sorted(list.filter(m => isThisWeek(m.due)));
-  const mine = sorted(list.filter(m => m.nextOwner === u.id));
-  const lines = [];
-  lines.push(t('digest.head', { team: t(TEAM_NAME_KEY) }));
-  lines.push('');
-  lines.push(t('digest.red', { n: red.length }));
-  lines.push(...(red.length ? red.map(m => t('digest.line', {
-    no: m.no, title: L(m.title), owner: USER[m.owner].name, next: L(m.next),
-    due: fmtDate(m.due), rel: dueText(m.due),
-  })) : [t('digest.none')]));
-  lines.push('');
-  lines.push(t('digest.due', { n: due.length }));
-  lines.push(...(due.length ? due.map(m => t('digest.line2', {
-    no: m.no, title: L(m.title), due: fmtDate(m.due), rel: dueText(m.due),
-  })) : [t('digest.none')]));
-  lines.push('');
-  lines.push(t('digest.mine', { n: mine.length }));
-  lines.push(...(mine.length ? mine.map(m => t('digest.line3', {
-    no: m.no, title: L(m.title), next: L(m.next), due: fmtDate(m.due),
-  })) : [t('digest.none')]));
-  return lines.join('\n');
-}
-
 function viewSettings() {
   const trashed = trashedMatters();
   const rows = PRACTICE_AREAS.map(a => {
@@ -1483,11 +1443,6 @@ function viewSettings() {
           <div class="kv"><span class="k">${esc(t('settings.numberFormat'))}</span><span class="v">${esc(t('settings.numberFormatValue'))}</span></div>
           <div class="kv"><span class="k">${esc(t('settings.numberExample'))}</span><span class="v">2026-041</span></div>
           <div class="kv"><span class="k">${esc(t('settings.numberNext'))}</span><span class="v">2026-${String(seq + 1).padStart(3, '0')}</span></div>
-        </div>
-        <div class="card card-pad">
-          <div class="section-title">${esc(t('settings.digest'))}</div>
-          <div class="small muted" style="margin-bottom:8px">${esc(t('settings.digestHint'))}</div>
-          <div class="email-preview">${esc(dailyDigest())}</div>
         </div>
       </div>
     </div>`;
