@@ -56,6 +56,13 @@ input,select,textarea{font:inherit;color:inherit}
 .btn-block{width:100%;padding:11px}
 .btn-wrap{width:100%;white-space:normal;text-align:center;line-height:1.5;padding:9px 12px}
 .custom-input{margin-top:7px;background:#fbfcfe}
+.sync-pill{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;
+  font-size:12.5px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.sync-pill.ok{background:var(--green-soft);color:var(--green);border-color:#b7e4c7}
+.sync-pill.ok:hover{background:#d9f5e4}
+.sync-pill.loading{background:#f1f4f8;color:var(--ink-3)}
+.sync-pill.error{background:var(--red-soft);color:var(--red);border-color:#f4c7c3;cursor:pointer}
+.sync-pill.error:hover{background:#fde3e0}
 .err{color:var(--red);font-size:13px;margin-top:10px;min-height:18px}
 
 /* ---------- 布局 ---------- */

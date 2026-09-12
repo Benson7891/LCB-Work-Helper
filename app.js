@@ -16,6 +16,25 @@ const KEY = {
   lang: 'lcb_lang_v1',
 };
 
+/* ------------------------------ 共享数据（Supabase） ------------------------------
+   页面是纯静态的，所以要三个人共用一份数据，必须有个服务器那一侧。
+   publishable key 设计成可以公开，配合数据库里的权限规则使用。 */
+const SUPABASE = {
+  url: 'https://tvavifjfbdwgkehtbxum.supabase.co',
+  key: 'sb_publishable_xliQlMoVI_RIwz3OUnrJzw_imZivXbE',
+};
+const REMOTE_ENABLED = !!(SUPABASE.url && SUPABASE.key) && typeof fetch === 'function';
+const SYNC_EVERY_MS = 15000;
+const sync = {
+  status: REMOTE_ENABLED ? 'loading' : 'off',  // loading | ok | error | off
+  lastAt: 0,
+  error: '',
+  dirty: false,        // 本地有还没推上去的改动
+  busy: false,
+  syncedLogs: new Set(),
+  purged: new Set(),   // 要彻底删掉的远端事项
+};
+
 /* ------------------------------ 界面语言 ------------------------------ */
 
 const LANGS = [
@@ -53,6 +72,17 @@ const STR = {
   'banner.noStorage': ['⚠️ 这个浏览器不允许网页在本机保存数据，所以你现在改的东西刷新后会丢。换成 GitHub Pages 网址打开，或者用 Chrome 打开这个文件就正常了。',
     '⚠️ This browser does not let the page save data locally, so your changes will be lost when you refresh. Open it from the GitHub Pages URL, or open the file in Chrome.',
     '⚠️ Este navegador no permite guardar datos localmente: los cambios se perderán al recargar. Ábrelo desde la URL de GitHub Pages o con Chrome.'],
+  'sync.ok': ['已同步', 'Synced', 'Sincronizado'],
+  'sync.loading': ['同步中…', 'Syncing…', 'Sincronizando…'],
+  'sync.error': ['未同步', 'Not synced', 'Sin sincronizar'],
+  'sync.offline': ['离线：改动只留在这台设备', 'Offline: changes stay on this device', 'Sin conexión: los cambios quedan aquí'],
+  'sync.tablesMissing': ['数据表还没建好，请在 Supabase 里执行建表脚本', 'The tables are missing — run the setup SQL in Supabase', 'Faltan las tablas: ejecuta el SQL de configuración en Supabase'],
+  'sync.tipOk': ['三台设备共用同一份数据 · 最近同步 {time} · 点一下立刻刷新',
+    'All devices share one dataset · last synced {time} · click to refresh now',
+    'Todos los dispositivos comparten los datos · última sincronización {time} · haz clic para refrescar'],
+  'sync.tipError': ['同步失败：{msg}。改动已存在本机，稍后会自动重试。',
+    'Sync failed: {msg}. Your changes are saved locally and will retry.',
+    'Error de sincronización: {msg}. Los cambios están guardados aquí y se reintentará.'],
 
   'dash.morning': ['早上好，{name}', 'Good morning, {name}', 'Buenos días, {name}'],
   'dash.afternoon': ['下午好，{name}', 'Good afternoon, {name}', 'Buenas tardes, {name}'],
@@ -718,6 +748,108 @@ function commit() {
   save(KEY.matters, matters);
   save(KEY.logs, logs);
   save(KEY.seq, seq);
+  schedulePush();
+}
+
+/* ------------------------------ 与服务器同步 ------------------------------ */
+
+function sbFetch(path, opts) {
+  const headers = Object.assign({
+    apikey: SUPABASE.key,
+    Authorization: 'Bearer ' + SUPABASE.key,
+    'Content-Type': 'application/json',
+  }, (opts && opts.headers) || {});
+  return fetch(SUPABASE.url + '/rest/v1' + path, Object.assign({}, opts || {}, { headers }));
+}
+
+const UPSERT = { Prefer: 'resolution=merge-duplicates,return=minimal' };
+
+// 把远端的事整份拉下来（正常情况下每 15 秒一次）
+async function pullRemote(opts) {
+  if (!REMOTE_ENABLED || sync.busy) return;
+  if (sync.dirty) return;              // 本地还有没推上去的改动，先别覆盖
+  sync.busy = true;
+  try {
+    const [mRes, lRes, metaRes] = await Promise.all([
+      sbFetch('/matters?select=id,data'),
+      sbFetch('/logs?select=id,data'),
+      sbFetch('/meta?select=key,value&key=eq.seq'),
+    ]);
+    if (mRes.status === 404) throw new Error('tables-missing');
+    if (!mRes.ok) throw new Error('HTTP ' + mRes.status);
+    const mRows = await mRes.json();
+    const lRows = lRes.ok ? await lRes.json() : [];
+    const metaRows = metaRes.ok ? await metaRes.json() : [];
+
+    if (!mRows.length && opts && opts.initial) {
+      // 远端还是空的：把这台设备上的演示数据推上去当初始版本
+      sync.busy = false;
+      await pushRemote();
+      return;
+    }
+    matters = mRows.map(r => r.data);
+    logs = lRows.map(r => r.data);
+    sync.syncedLogs = new Set(logs.map(l => l.id));
+    const seqRow = metaRows.filter(r => r.key === 'seq')[0];
+    if (seqRow && typeof seqRow.value === 'number') seq = Math.max(seq, seqRow.value);
+    save(KEY.matters, matters);
+    save(KEY.logs, logs);
+    save(KEY.seq, seq);
+    sync.status = 'ok';
+    sync.lastAt = Date.now();
+    sync.error = '';
+  } catch (e) {
+    sync.status = 'error';
+    sync.error = String((e && e.message) || e);
+  }
+  syncReady = true;
+  sync.busy = false;
+  render();
+}
+
+async function pushRemote() {
+  if (!REMOTE_ENABLED) return;
+  sync.busy = true;
+  try {
+    if (matters.length) {
+      const rows = matters.map(m => ({ id: String(m.id), data: m, updated_at: new Date().toISOString() }));
+      const r = await sbFetch('/matters', { method: 'POST', headers: UPSERT, body: JSON.stringify(rows) });
+      if (r.status === 404) throw new Error('tables-missing');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+    }
+    const fresh = logs.filter(l => !sync.syncedLogs.has(l.id));
+    if (fresh.length) {
+      const rows = fresh.map(l => ({ id: l.id, matter_id: String(l.matterId), data: l }));
+      const r = await sbFetch('/logs', { method: 'POST', headers: UPSERT, body: JSON.stringify(rows) });
+      if (r.ok) fresh.forEach(l => sync.syncedLogs.add(l.id));
+    }
+    await sbFetch('/meta', { method: 'POST', headers: UPSERT, body: JSON.stringify([{ key: 'seq', value: seq }]) });
+    for (const id of [...sync.purged]) {
+      await sbFetch('/matters?id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
+      sync.purged.delete(id);
+    }
+    sync.status = 'ok';
+    sync.lastAt = Date.now();
+    sync.error = '';
+    sync.dirty = false;
+  } catch (e) {
+    // 推失败：把改动留在本机，标成"未同步"，下次同步时再试
+    sync.status = 'error';
+    sync.error = String((e && e.message) || e);
+    sync.dirty = true;
+  }
+  sync.busy = false;
+  render();
+}
+
+let pushTimer = null;
+let syncReady = !REMOTE_ENABLED;   // 首次拉取完成后才允许往服务器写，避免用本机数据覆盖别人的
+function schedulePush() {
+  if (!REMOTE_ENABLED) return;
+  sync.dirty = true;
+  if (!syncReady) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => { pushRemote(); }, 500);
 }
 function currentUser() { return session ? USER[session.userId] : null; }
 
@@ -866,6 +998,23 @@ function langSwitcher(variant) {
   ).join('')}</div>`;
 }
 
+/* 顶栏的同步状态：让人一眼看出数据是不是几台设备共用的 */
+function syncBadge() {
+  if (!REMOTE_ENABLED) return '';
+  const st = sync.status;
+  if (st === 'loading') {
+    return `<span class="sync-pill loading">☁ ${esc(t('sync.loading'))}</span>`;
+  }
+  if (st === 'error') {
+    const msg = sync.error === 'tables-missing' ? t('sync.tablesMissing') : sync.error;
+    return `<button class="sync-pill error" type="button" data-action="sync-now"
+      title="${esc(t('sync.tipError', { msg }))}">⚠ ${esc(t('sync.error'))}</button>`;
+  }
+  const time = sync.lastAt ? fmtStamp(sync.lastAt).slice(11) : '—';
+  return `<button class="sync-pill ok" type="button" data-action="sync-now"
+    title="${esc(t('sync.tipOk', { time }))}">☁ ${esc(t('sync.ok'))}</button>`;
+}
+
 /* ------------------------------ 视图：外壳 ------------------------------ */
 
 function navFor(route) {
@@ -889,6 +1038,7 @@ function shell(route, content) {
       <div class="logo"><div class="brand-mark">LCB</div><span>${esc(t(APP_TITLE_KEY))}</span></div>
       <nav class="nav">${navFor(route)}${langSwitcher('in-nav')}</nav>
       <div class="topbar-right">
+        ${syncBadge()}
         <button class="user-chip" type="button" data-action="switch-prompt" title="${esc(t('topbar.switch'))}">
           <span class="avatar">${esc(u.short)}</span>
           <span>
@@ -1753,6 +1903,10 @@ document.addEventListener('click', ev => {
     case 'set-lang':
       setLang(el.getAttribute('data-lang'));
       break;
+    case 'sync-now':
+      if (sync.dirty) { pushRemote(); toast(t('sync.loading')); }
+      else { toast(t('sync.loading')); pullRemote(); }
+      break;
     case 'switch-prompt': {
       const u = currentUser();
       const idx = USERS.findIndex(x => x.id === u.id);
@@ -1940,6 +2094,7 @@ document.addEventListener('click', ev => {
     case 'confirm-purge-matter': {
       const id = el.getAttribute('data-id');
       if (!isAdmin()) { toast(t('toast.adminPurge')); break; }
+      sync.purged.add(String(id));
       matters = matters.filter(x => String(x.id) !== String(id));
       logs = logs.filter(l => String(l.matterId) !== String(id));
       commit();
@@ -2051,5 +2206,19 @@ document.addEventListener('keydown', ev => {
 
 /* ------------------------------ 启动 ------------------------------ */
 
-if (!load(KEY.matters, null)) commit();
+// 本地还没有缓存时，只把演示数据写进本机（先不推服务器——远端可能已经有团队的数据）
+if (!load(KEY.matters, null)) {
+  save(KEY.matters, matters);
+  save(KEY.logs, logs);
+  save(KEY.seq, seq);
+}
 render();
+
+if (REMOTE_ENABLED) {
+  pullRemote({ initial: true });
+  setInterval(() => { if (!sync.dirty) pullRemote(); }, SYNC_EVERY_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !sync.dirty) pullRemote();
+  });
+  window.addEventListener('online', () => { if (sync.dirty) pushRemote(); else pullRemote(); });
+}
