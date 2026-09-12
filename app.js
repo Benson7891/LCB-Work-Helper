@@ -269,13 +269,13 @@ const STR = {
   'weekly.empty': ['没有可显示的事项。', 'Nothing to show.', 'Nada que mostrar.'],
 
   'settings.title': ['设置', 'Settings', 'Ajustes'],
-  'settings.desc': ['成员、可见范围、编号规则、提醒。原型的改动都存在本机浏览器里。',
-    'Members, visibility, numbering, reminders. In this prototype everything is stored in your own browser.',
-    'Miembros, visibilidad, numeración y avisos. En este prototipo todo se guarda en tu navegador.'],
+  'settings.desc': ['成员、可见范围和编号规则。',
+    'Members, visibility, and numbering.',
+    'Miembros, visibilidad y numeración.'],
   'settings.reset': ['重置演示数据', 'Reset demo data', 'Restablecer datos de demo'],
-  'settings.notice': ['这是原型：数据保存在你自己的浏览器里，换设备看不到，也不会真的发邮件。接上服务器后，这三件事就能变成真的。',
-    'This is a prototype: data lives in your own browser, is not visible on other devices, and no emails are actually sent. Once it has a backend, all three become real.',
-    'Esto es un prototipo: los datos viven en tu navegador, no se ven en otros dispositivos y no se envían correos reales. Con un backend, las tres cosas serán reales.'],
+  'settings.notice': ['邮件提醒只是预览，不会真的发。接上服务器后，这件事就能变成真的',
+    'Email reminders are only a preview and are not actually sent. Once connected to a server, this can become real.',
+    'Los recordatorios por correo son solo una vista previa y no se envían realmente. Al conectar el servidor, esto podrá hacerse realidad.'],
   'settings.members': ['团队成员', 'Team members', 'Miembros del equipo'],
   'th.name': ['姓名', 'Name', 'Nombre'],
   'th.email': ['邮箱', 'Email', 'Correo'],
@@ -306,6 +306,7 @@ const STR = {
   'settings.numberExample': ['示例', 'Example', 'Ejemplo'],
   'settings.numberNext': ['下一条编号', 'Next number', 'Próximo número'],
   'modal.new.title': ['新建事项', 'New matter', 'Nuevo asunto'],
+  'modal.new.stage': ['现在要做什么？', 'What needs to be done now?', '¿Qué hay que hacer ahora?'],
   'modal.new.submit': ['创建事项', 'Create matter', 'Crear asunto'],
   'modal.new.membersHint': ['只有勾进来的人能打开这条事项。制裁／涉美事项通常只勾 Carol 与 Carlos，换业务类型会自动改默认值。',
     'Only ticked people can open this matter. Sanctions / US matters usually tick only Carol and Carlos; changing the area resets the defaults.',
@@ -317,6 +318,7 @@ const STR = {
   'modal.file.hint': ['文件本身放在 Google Drive 或飞书云盘，这里只保存链接。', 'The file itself stays in Google Drive or Lark Drive; only the link is saved here.', 'El archivo está en Google Drive o Lark; aquí solo se guarda el enlace.'],
   'modal.file.submit': ['添加', 'Add', 'Añadir'],
   'modal.complete.title': ['完成当前步骤', 'Complete the current step', 'Completar el paso actual'],
+  'modal.complete.stage': ['现在这一步要做什么？', 'What needs to be done in this step?', '¿Qué hay que hacer en este paso?'],
   'modal.complete.aboutTo': ['即将完成这一步', 'About to complete', 'A punto de completar'],
   'modal.complete.afterHint': ['填完了，这条事项就进入下一步。下面填的是<b>完成之后</b>的新状态。',
     'Once you save, the matter moves to the next step. Fill in the new state <b>after</b> completion.',
@@ -759,8 +761,22 @@ function sbFetch(path, opts) {
 
 const UPSERT = { Prefer: 'resolution=merge-duplicates,return=minimal' };
 
+// 后台同步不能打断用户：正在填表、操作弹窗或选中文字时先不刷新。
+function userIsInteracting() {
+  if (state.modal) return true;
+  const active = document.activeElement;
+  if (active && (active.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || ''))) return true;
+  try {
+    const selection = window.getSelection && window.getSelection();
+    if (selection && !selection.isCollapsed && String(selection).trim()) return true;
+  } catch (e) { /* 某些浏览器不允许读取选区 */ }
+  return false;
+}
+
 // 把远端的事整份拉下来（正常情况下每 15 秒一次）
 async function pullRemote(opts) {
+  const background = !!(opts && opts.background);
+  if (background && userIsInteracting()) return;
   if (!REMOTE_ENABLED || sync.busy) return;
   if (sync.dirty) return;              // 本地还有没推上去的改动，先别覆盖
   sync.busy = true;
@@ -776,23 +792,32 @@ async function pullRemote(opts) {
     const lRows = lRes.ok ? await lRes.json() : [];
     const metaRows = metaRes.ok ? await metaRes.json() : [];
 
-    matters = mRows.map(r => r.data);
-    logs = lRows.map(r => r.data);
-    sync.syncedLogs = new Set(logs.map(l => l.id));
+    const nextMatters = mRows.map(r => r.data);
+    const nextLogs = lRows.map(r => r.data);
     const seqRow = metaRows.filter(r => r.key === 'seq')[0];
-    if (seqRow && typeof seqRow.value === 'number') seq = seqRow.value;
+    const nextSeq = seqRow && typeof seqRow.value === 'number' ? seqRow.value : seq;
+    const changed = JSON.stringify(nextMatters) !== JSON.stringify(matters) ||
+      JSON.stringify(nextLogs) !== JSON.stringify(logs) || nextSeq !== seq;
+    // 请求发出后用户可能刚开始输入；这次结果留到下一轮再取。
+    if (background && userIsInteracting()) { sync.busy = false; return; }
+    matters = nextMatters;
+    logs = nextLogs;
+    seq = nextSeq;
+    sync.syncedLogs = new Set(logs.map(l => l.id));
     save(KEY.matters, matters);
     save(KEY.logs, logs);
     save(KEY.seq, seq);
     sync.status = 'ok';
     sync.lastAt = Date.now();
     sync.error = '';
+    if (background && !changed) { syncReady = true; sync.busy = false; return; }
   } catch (e) {
     sync.status = 'error';
     sync.error = String((e && e.message) || e);
   }
   syncReady = true;
   sync.busy = false;
+  if (background && userIsInteracting()) return;
   render();
 }
 
@@ -1508,7 +1533,7 @@ function modalCompleteStep(mo) {
      <div class="hint" style="margin-bottom:14px">${t('modal.complete.afterHint')}</div>
      <form id="complete-form" data-action="confirm-complete-step" data-id="${m.id}">
        <div class="grid-2">
-         <div class="field"><label class="req">${esc(t('detail.stage'))}</label>${stageField}</div>
+         <div class="field"><label class="req">${esc(t('modal.complete.stage'))}</label>${stageField}</div>
          <div class="field"><label class="req">${esc(t('detail.status'))}</label><select name="status">${statusOpts}</select></div>
          <div class="field"><label class="req">${esc(t('detail.due'))}</label><input type="date" name="due" value="${esc(m.due || '')}"></div>
          <div class="field"><label>${esc(t('form.waiting'))}</label>${waitField}</div>
@@ -1574,7 +1599,7 @@ function modalNewMatter() {
             <div class="field"><label class="req">${esc(t('detail.title'))}</label><input name="title" required></div>
             <div class="field"><label class="req">${esc(t('detail.area'))}</label>${areaField}</div>
             <div class="field"><label class="req">${esc(t('detail.owner'))}</label><select name="owner">${ownerOpts}</select></div>
-            <div class="field"><label class="req">${esc(t('detail.stage'))}</label>${stageField}</div>
+            <div class="field"><label class="req">${esc(t('modal.new.stage'))}</label>${stageField}</div>
             <div class="field"><label class="req">${esc(t('detail.status'))}</label><select name="status">${statusOpts}</select></div>
             <div class="field"><label class="req">${esc(t('detail.due'))}</label><input type="date" name="due" required></div>
             <div class="field"><label>${esc(t('detail.waiting'))}</label>${waitField}</div>
@@ -2168,9 +2193,9 @@ render();
 
 if (REMOTE_ENABLED) {
   pullRemote({ initial: true });
-  setInterval(() => { if (!sync.dirty) pullRemote(); }, SYNC_EVERY_MS);
+  setInterval(() => { if (!sync.dirty) pullRemote({ background: true }); }, SYNC_EVERY_MS);
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !sync.dirty) pullRemote();
+    if (!document.hidden && !sync.dirty) pullRemote({ background: true });
   });
-  window.addEventListener('online', () => { if (sync.dirty) pushRemote(); else pullRemote(); });
+  window.addEventListener('online', () => { if (sync.dirty) pushRemote(); else pullRemote({ background: true }); });
 }
