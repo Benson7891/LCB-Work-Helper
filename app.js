@@ -15,6 +15,7 @@ const KEY = {
   seq: 'lcb_seq_v1',
   lang: 'lcb_lang_v1',
   systemSeen: 'lcb_system_notice_seen_v1',
+  systemEnabled: 'lcb_system_notice_enabled_v1',
 };
 
 /* ------------------------------ 共享数据（Supabase） ------------------------------
@@ -148,6 +149,7 @@ const STR = {
   'inbox.systemEnable': ['开启系统通知', 'Enable system notifications', 'Activar notificaciones del sistema'],
   'inbox.systemRequesting': ['等待系统授权…', 'Waiting for permission…', 'Esperando autorización…'],
   'inbox.systemEnabled': ['系统通知已开启', 'System notifications enabled', 'Notificaciones del sistema activadas'],
+  'inbox.systemDisable': ['关闭系统通知', 'Turn off system notifications', 'Desactivar notificaciones del sistema'],
   'inbox.systemDenied': ['系统通知已被浏览器阻止', 'System notifications blocked', 'Notificaciones del sistema bloqueadas'],
   'inbox.systemUnsupported': ['此浏览器不支持系统通知', 'System notifications are not supported', 'Este navegador no admite notificaciones del sistema'],
   'system.title': ['LCB 新通知', 'New LCB notification', 'Nueva notificación de LCB'],
@@ -441,6 +443,11 @@ const STR = {
   'modal.denyUndoEdit.body': ['只有管理员，或上次修改事项的人 {name}，可以撤回这次修改。',
     'Only an admin or {name}, who made the last edit, can undo it.',
     'Solo una administradora o {name}, quien hizo la última modificación, puede deshacerla.'],
+  'modal.disableSystem.title': ['关闭系统通知？', 'Turn off system notifications?', '¿Desactivar las notificaciones del sistema?'],
+  'modal.disableSystem.body': ['注意，关闭系统通知后任何人执行操作时都不会向您发送响铃通知，团队协作时，强烈建议您开启！',
+    'Please note: after turning off system notifications, you will not receive alert notifications when anyone performs an action. We strongly recommend keeping them enabled for team collaboration!',
+    'Atención: al desactivar las notificaciones del sistema, no recibirá avisos sonoros cuando alguien realice una acción. Para la colaboración del equipo, recomendamos encarecidamente mantenerlas activadas.'],
+  'modal.disableSystem.confirm': ['确认关闭', 'Turn off', 'Desactivar'],
   'modal.denyUndo.title': ['无法撤销', 'Cannot undo', 'No se puede deshacer'],
   'modal.denyUndo.body': ['只有管理员，或刚完成这一步的人，可以撤销。<br><br>最后完成这一步的是 {name}。',
     'Only an admin, or the person who completed the step, can undo.<br><br>The last completion was by {name}.',
@@ -468,6 +475,7 @@ const STR = {
   'toast.needChatRecipient': ['请至少勾选一位事项成员', 'Select at least one matter member', 'Selecciona al menos un miembro del asunto'],
   'toast.markedRead': ['已标为已读', 'Marked as read', 'Marcado como leído'],
   'toast.systemEnabled': ['✅已开启系统通知', '✅ System notifications enabled', '✅ Notificaciones del sistema activadas'],
+  'toast.systemDisabled': ['❎已关闭系统通知', '❎ System notifications turned off', '❎ Notificaciones del sistema desactivadas'],
   'toast.systemDenied': ['浏览器没有允许系统通知，请在网站权限里开启', 'The browser did not allow notifications. Enable them in site permissions.', 'El navegador no permitió las notificaciones. Actívalas en los permisos del sitio.'],
   'toast.loggedOut': ['已退出登录', 'Signed out', 'Sesión cerrada'],
   'toast.switched': ['已切换到 {name}', 'Switched to {name}', 'Cambiado a {name}'],
@@ -824,7 +832,11 @@ const state = {
   modal: null,
 };
 const savedSystemSeen = load(KEY.systemSeen, null);
-const systemNotice = { seen: new Set(Array.isArray(savedSystemSeen) ? savedSystemSeen : []), requesting: false };
+const systemNotice = {
+  seen: new Set(Array.isArray(savedSystemSeen) ? savedSystemSeen : []),
+  requesting: false,
+  enabled: load(KEY.systemEnabled, null) !== false,
+};
 // 第一次启用时不把历史通知一口气全弹出来，只推送之后新同步到的通知。
 if (!Array.isArray(savedSystemSeen)) {
   logs.forEach(l => (l.notifyTo || []).forEach(userId => systemNotice.seen.add(userId + ':' + l.id)));
@@ -1073,6 +1085,7 @@ function inboxText(l) {
 }
 function systemNotificationState() {
   if (typeof Notification === 'undefined') return 'unsupported';
+  if (Notification.permission === 'granted' && !systemNotice.enabled) return 'disabled';
   return Notification.permission || 'default';
 }
 function saveSystemSeen() {
@@ -1087,6 +1100,13 @@ function baselineSystemNotifications(user) {
 function enableSystemNotifications() {
   if (typeof Notification === 'undefined') { toast(t('inbox.systemUnsupported')); return; }
   baselineSystemNotifications(currentUser());
+  if (Notification.permission === 'granted') {
+    systemNotice.enabled = true;
+    save(KEY.systemEnabled, true);
+    toast(t('toast.systemEnabled'));
+    render();
+    return;
+  }
   systemNotice.requesting = true;
   render();
   let finished = false;
@@ -1094,6 +1114,10 @@ function enableSystemNotifications() {
     if (finished) return;
     finished = true;
     systemNotice.requesting = false;
+    if (permission === 'granted') {
+      systemNotice.enabled = true;
+      save(KEY.systemEnabled, true);
+    }
     toast(t(permission === 'granted' ? 'toast.systemEnabled' : 'toast.systemDenied'));
     render();
   };
@@ -1122,7 +1146,7 @@ function deliverSystemNotifications(nextLogs) {
     if (systemNotice.seen.has(seenKey)) return;
     systemNotice.seen.add(seenKey);
     changed = true;
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    if (systemNotice.enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       const notice = new Notification(t('system.title'), { body: inboxText(l), tag: 'lcb-' + l.id });
       notice.onclick = () => {
         if (window.focus) window.focus();
@@ -1460,12 +1484,17 @@ function viewInbox() {
   const u = currentUser();
   const entries = inboxEntries(u);
   const systemState = systemNotificationState();
-  const systemControl = systemNotice.requesting
-    ? `<span class="system-notice-state requesting">${esc(t('inbox.systemRequesting'))}</span>`
-    : systemState === 'default'
-    ? `<button class="btn" type="button" data-action="enable-system-notifications">${esc(t('inbox.systemEnable'))}</button>`
-    : `<span class="system-notice-state ${systemState}">${esc(t(systemState === 'granted' ? 'inbox.systemEnabled' :
-      systemState === 'denied' ? 'inbox.systemDenied' : 'inbox.systemUnsupported'))}</span>`;
+  let systemControl;
+  if (systemNotice.requesting) {
+    systemControl = `<span class="system-notice-state requesting">${esc(t('inbox.systemRequesting'))}</span>`;
+  } else if (systemState === 'default' || systemState === 'disabled') {
+    systemControl = `<button class="btn" type="button" data-action="enable-system-notifications">${esc(t('inbox.systemEnable'))}</button>`;
+  } else if (systemState === 'granted') {
+    systemControl = `<span class="system-notice-controls"><span class="system-notice-state granted">${esc(t('inbox.systemEnabled'))}</span>
+      <button class="btn" type="button" data-action="disable-system-notifications">${esc(t('inbox.systemDisable'))}</button></span>`;
+  } else {
+    systemControl = `<span class="system-notice-state ${systemState}">${esc(t(systemState === 'denied' ? 'inbox.systemDenied' : 'inbox.systemUnsupported'))}</span>`;
+  }
   const rows = entries.length ? entries.map(l => {
     const read = (l.readBy || []).includes(u.id);
     const actor = (USER[l.by] || {}).name || l.by;
@@ -2255,6 +2284,20 @@ document.addEventListener('click', ev => {
       break;
     case 'enable-system-notifications':
       enableSystemNotifications();
+      break;
+    case 'disable-system-notifications':
+      state.modal = {
+        type: 'confirm', titleKey: 'modal.disableSystem.title', body: t('modal.disableSystem.body'),
+        confirmKey: 'modal.disableSystem.confirm', action: 'confirm-disable-system-notifications',
+      };
+      render();
+      break;
+    case 'confirm-disable-system-notifications':
+      systemNotice.enabled = false;
+      save(KEY.systemEnabled, false);
+      state.modal = null;
+      render();
+      toast(t('toast.systemDisabled'));
       break;
     case 'save-matter':
       saveMatterFromDom(el.getAttribute('data-id')); break;
