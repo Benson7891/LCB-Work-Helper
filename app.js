@@ -327,7 +327,7 @@ const STR = {
   'weekly.print': ['打印／导出 PDF', 'Print / export PDF', 'Imprimir / exportar PDF'],
   'weekly.items': ['· {n} 项', '· {n} matters', '· {n} asuntos'],
   'weekly.stage': ['现状', 'Where we are', 'Situación'],
-  'weekly.next': ['下一步', 'Next step', 'Próximo paso'],
+  'weekly.next': ['现在该做', 'Do now', 'Hacer ahora'],
   'weekly.who': ['谁做', 'Who', 'Quién'],
   'weekly.due': ['截止', 'Due', 'Vence'],
   'weekly.waiting': ['在等谁', 'Waiting on', 'Esperando a'],
