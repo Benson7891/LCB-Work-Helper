@@ -74,7 +74,6 @@ const STR = {
   'nav.settings': ['信息', 'Info', 'Información'],
   'nav.trash': ['回收站', 'Recycle bin', 'Papelera'],
   'topbar.signout': ['退出登录', 'Sign out', 'Cerrar sesión'],
-  'topbar.switch': ['点一下切换到下一个账号（演示权限用）', 'Click to switch to the next account (to demo permissions)', 'Haz clic para cambiar a la siguiente cuenta (para probar permisos)'],
   'banner.noStorage': ['⚠️ 这个浏览器不允许网页在本机保存数据，所以你现在改的东西刷新后会丢。换成 GitHub Pages 网址打开，或者用 Chrome 打开这个文件就正常了。',
     '⚠️ This browser does not let the page save data locally, so your changes will be lost when you refresh. Open it from the GitHub Pages URL, or open the file in Chrome.',
     '⚠️ Este navegador no permite guardar datos localmente: los cambios se perderán al recargar. Ábrelo desde la URL de GitHub Pages o con Chrome.'],
@@ -491,7 +490,6 @@ const STR = {
   'toast.notificationDeleted': ['已删除消息', 'Message deleted', 'Mensaje eliminado'],
   'toast.systemDenied': ['系统通知已被浏览器阻止', 'System notifications have been blocked by the browser', 'El navegador ha bloqueado las notificaciones del sistema'],
   'toast.loggedOut': ['已退出登录', 'Signed out', 'Sesión cerrada'],
-  'toast.switched': ['已切换到 {name}', 'Switched to {name}', 'Cambiado a {name}'],
   'toast.reset': ['已重置为演示数据', 'Demo data restored', 'Datos de demo restablecidos'],
   'toast.areaDefault': ['已按业务类型默认勾选项目成员', 'Members reset to this area\'s defaults', 'Miembros restablecidos para esta área'],
   'toast.needClient': ['客户、事项名称、下一步、截止日期都必须填写', 'Client, matter name, next step and due date are required', 'Cliente, nombre, próximo paso y fecha límite son obligatorios'],
@@ -1392,13 +1390,13 @@ function shell(route, content) {
       <nav class="nav">${navFor(route)}${langSwitcher('in-nav')}</nav>
       <div class="topbar-right">
         ${syncBadge()}
-        <button class="user-chip" type="button" data-action="switch-prompt" title="${esc(t('topbar.switch'))}">
+        <div class="user-chip" aria-label="${esc(u.name)}">
           <span class="avatar">${esc(u.short)}</span>
           <span>
             <span class="nm">${esc(u.name)}</span>
             <span class="rl" style="display:block">${esc(t(u.roleKey))}</span>
           </span>
-        </button>
+        </div>
         <button class="btn btn-sm btn-ghost" type="button" data-action="logout">${esc(t('topbar.signout'))}</button>
       </div>
     </div>
@@ -2337,16 +2335,6 @@ document.addEventListener('click', ev => {
       if (sync.dirty) { pushRemote(); toast(t('sync.loading')); }
       else { toast(t('sync.loading')); pullRemote(); }
       break;
-    case 'switch-prompt': {
-      const u = currentUser();
-      const idx = USERS.findIndex(x => x.id === u.id);
-      const next = USERS[(idx + 1) % USERS.length];
-      session = { userId: next.id }; save(KEY.session, session);
-      toast(t('toast.switched', { name: next.name }));
-      if (location.hash.startsWith('#/matters/')) go('#/'); else render();
-      render();
-      break;
-    }
     case 'new-matter':
       state.modal = { type: 'new-matter' }; render(); break;
     case 'close-modal':
