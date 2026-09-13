@@ -146,6 +146,7 @@ const STR = {
     'Once enabled, new activity also appears as a system notification. Keep this site open; a background tab is fine.',
     'Al activarlas, la nueva actividad también aparecerá como notificación del sistema. Mantén el sitio abierto; puede estar en segundo plano.'],
   'inbox.systemEnable': ['开启系统通知', 'Enable system notifications', 'Activar notificaciones del sistema'],
+  'inbox.systemRequesting': ['等待系统授权…', 'Waiting for permission…', 'Esperando autorización…'],
   'inbox.systemEnabled': ['系统通知已开启', 'System notifications enabled', 'Notificaciones del sistema activadas'],
   'inbox.systemDenied': ['系统通知已被浏览器阻止', 'System notifications blocked', 'Notificaciones del sistema bloqueadas'],
   'inbox.systemUnsupported': ['此浏览器不支持系统通知', 'System notifications are not supported', 'Este navegador no admite notificaciones del sistema'],
@@ -466,7 +467,7 @@ const STR = {
   'toast.needMessage': ['请输入消息', 'Please enter a message', 'Escribe un mensaje'],
   'toast.needChatRecipient': ['请至少勾选一位事项成员', 'Select at least one matter member', 'Selecciona al menos un miembro del asunto'],
   'toast.markedRead': ['已标为已读', 'Marked as read', 'Marcado como leído'],
-  'toast.systemEnabled': ['系统通知已开启', 'System notifications enabled', 'Notificaciones del sistema activadas'],
+  'toast.systemEnabled': ['✅已开启系统通知', '✅ System notifications enabled', '✅ Notificaciones del sistema activadas'],
   'toast.systemDenied': ['浏览器没有允许系统通知，请在网站权限里开启', 'The browser did not allow notifications. Enable them in site permissions.', 'El navegador no permitió las notificaciones. Actívalas en los permisos del sitio.'],
   'toast.loggedOut': ['已退出登录', 'Signed out', 'Sesión cerrada'],
   'toast.switched': ['已切换到 {name}', 'Switched to {name}', 'Cambiado a {name}'],
@@ -823,7 +824,7 @@ const state = {
   modal: null,
 };
 const savedSystemSeen = load(KEY.systemSeen, null);
-const systemNotice = { seen: new Set(Array.isArray(savedSystemSeen) ? savedSystemSeen : []) };
+const systemNotice = { seen: new Set(Array.isArray(savedSystemSeen) ? savedSystemSeen : []), requesting: false };
 // 第一次启用时不把历史通知一口气全弹出来，只推送之后新同步到的通知。
 if (!Array.isArray(savedSystemSeen)) {
   logs.forEach(l => (l.notifyTo || []).forEach(userId => systemNotice.seen.add(userId + ':' + l.id)));
@@ -1086,10 +1087,31 @@ function baselineSystemNotifications(user) {
 function enableSystemNotifications() {
   if (typeof Notification === 'undefined') { toast(t('inbox.systemUnsupported')); return; }
   baselineSystemNotifications(currentUser());
-  Notification.requestPermission().then(permission => {
+  systemNotice.requesting = true;
+  render();
+  let finished = false;
+  const finish = permission => {
+    if (finished) return;
+    finished = true;
+    systemNotice.requesting = false;
     toast(t(permission === 'granted' ? 'toast.systemEnabled' : 'toast.systemDenied'));
     render();
-  });
+  };
+  try {
+    // Chrome 返回 Promise；部分 Safari 版本只调用回调且返回 undefined，两种都兼容。
+    const result = Notification.requestPermission(finish);
+    if (result && typeof result.then === 'function') result.then(finish).catch(() => finish(Notification.permission));
+    else {
+      const watchPermission = () => {
+        if (finished) return;
+        if (Notification.permission !== 'default') finish(Notification.permission);
+        else setTimeout(watchPermission, 500);
+      };
+      setTimeout(watchPermission, 500);
+    }
+  } catch (e) {
+    finish(Notification.permission);
+  }
 }
 function deliverSystemNotifications(nextLogs) {
   const u = currentUser();
@@ -1438,7 +1460,9 @@ function viewInbox() {
   const u = currentUser();
   const entries = inboxEntries(u);
   const systemState = systemNotificationState();
-  const systemControl = systemState === 'default'
+  const systemControl = systemNotice.requesting
+    ? `<span class="system-notice-state requesting">${esc(t('inbox.systemRequesting'))}</span>`
+    : systemState === 'default'
     ? `<button class="btn" type="button" data-action="enable-system-notifications">${esc(t('inbox.systemEnable'))}</button>`
     : `<span class="system-notice-state ${systemState}">${esc(t(systemState === 'granted' ? 'inbox.systemEnabled' :
       systemState === 'denied' ? 'inbox.systemDenied' : 'inbox.systemUnsupported'))}</span>`;
