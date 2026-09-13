@@ -920,8 +920,8 @@ async function pullRemote(opts) {
   sync.busy = true;
   try {
     const [mRes, lRes, metaRes] = await Promise.all([
-      sbFetch('/matters?select=id,data'),
-      sbFetch('/logs?select=id,data'),
+      sbFetch('/matters?select=id,data&id=not.like.solo_*'),
+      sbFetch('/logs?select=id,data&id=not.like.solo_*'),
       sbFetch('/meta?select=key,value&key=eq.seq'),
     ]);
     if (mRes.status === 404) throw new Error('tables-missing');
