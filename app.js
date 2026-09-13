@@ -66,6 +66,7 @@ const STR = {
   'nav.dashboard': ['工作台', 'Dashboard', 'Panel'],
   'nav.matters': ['事项', 'Matters', 'Asuntos'],
   'nav.weekly': ['每周视图', 'Weekly', 'Semanal'],
+  'nav.inbox': ['收件箱', 'Inbox', 'Bandeja de entrada'],
   'nav.settings': ['信息', 'Info', 'Información'],
   'nav.trash': ['回收站', 'Recycle bin', 'Papelera'],
   'topbar.signout': ['退出登录', 'Sign out', 'Cerrar sesión'],
@@ -134,6 +135,43 @@ const STR = {
   'th.next': ['当前步骤', 'Current step', 'Paso actual'],
   'th.due': ['截止', 'Due', 'Vence'],
   'th.waiting': ['等待谁', 'Waiting for', 'Esperando a'],
+  'th.chat': ['聊天', 'Chat', 'Chat'],
+
+  'inbox.title': ['收件箱', 'Inbox', 'Bandeja de entrada'],
+  'inbox.desc': ['事项成员的操作通知和聊天消息。每个账号的已读状态分别保存。',
+    'Matter activity and chat messages for you. Read status is saved separately for each account.',
+    'Actividad y mensajes de los asuntos para ti. El estado de lectura se guarda por separado para cada cuenta.'],
+  'inbox.empty': ['收件箱里还没有消息。', 'Your inbox is empty.', 'Tu bandeja de entrada está vacía.'],
+  'inbox.markRead': ['已读', 'Mark read', 'Marcar como leído'],
+  'inbox.read': ['已读', 'Read', 'Leído'],
+  'inbox.unread': ['未读', 'Unread', 'No leído'],
+  'inbox.new': ['{actor} 新建了事项“{title}”。当前步骤：“{next}”，由 {owner} 负责。当前事项状态：{status}。',
+    '{actor} created “{title}”. Current step: “{next}”, assigned to {owner}. Current status: {status}.',
+    '{actor} creó «{title}». Paso actual: «{next}», a cargo de {owner}. Estado actual: {status}.'],
+  'inbox.edited': ['{actor} 修改了事项“{title}”。当前步骤：“{next}”，由 {owner} 负责。当前事项状态：{status}。',
+    '{actor} updated “{title}”. Current step: “{next}”, assigned to {owner}. Current status: {status}.',
+    '{actor} modificó «{title}». Paso actual: «{next}», a cargo de {owner}. Estado actual: {status}.'],
+  'inbox.deleted': ['{actor} 删除了事项“{title}”，事项已进入回收站。',
+    '{actor} deleted “{title}”; it is now in the recycle bin.',
+    '{actor} eliminó «{title}»; ahora está en la papelera.'],
+  'inbox.restored': ['{actor} 从回收站恢复了事项“{title}”。',
+    '{actor} restored “{title}” from the recycle bin.',
+    '{actor} restauró «{title}» desde la papelera.'],
+  'inbox.stepDone': ['{actor} 完成了事项“{title}”步骤“{step}”，下一步“{next}”由 {owner} 负责。当前事项状态：{status}。',
+    '{actor} completed the “{step}” step in “{title}”. Next, “{next}” is assigned to {owner}. Current status: {status}.',
+    '{actor} completó el paso «{step}» de «{title}». El siguiente paso, «{next}», está a cargo de {owner}. Estado actual: {status}.'],
+  'inbox.stepUndo': ['{actor} 撤回了事项“{title}”的步骤完成记录，当前步骤回到“{step}”，由 {owner} 负责。',
+    '{actor} undid a completed step in “{title}”. The current step is again “{step}”, assigned to {owner}.',
+    '{actor} deshizo un paso completado de «{title}». El paso actual vuelve a ser «{step}», a cargo de {owner}.'],
+  'inbox.fileAdd': ['{actor} 在事项“{title}”中添加了文件链接“{name}”。',
+    '{actor} added the file link “{name}” to “{title}”.',
+    '{actor} añadió el enlace «{name}» al asunto «{title}».'],
+  'inbox.fileRemove': ['{actor} 从事项“{title}”中移除了文件链接“{name}”。',
+    '{actor} removed the file link “{name}” from “{title}”.',
+    '{actor} quitó el enlace «{name}» del asunto «{title}».'],
+  'inbox.chat': ['{actor} 在事项“{title}”中发送消息：“{message}”',
+    '{actor} sent a message in “{title}”: “{message}”',
+    '{actor} envió un mensaje en «{title}»: «{message}»'],
 
   'status.green': ['绿 · 正常', 'Green · On track', 'Verde · En curso'],
   'status.green.short': ['正常', 'On track', 'En curso'],
@@ -256,6 +294,7 @@ const STR = {
   'detail.entry.stepDone': ['完成步骤：{text}（负责人 {owner}）', 'Step completed: {text} (owner {owner})', 'Paso completado: {text} (responsable {owner})'],
   'detail.entry.stageMove': ['阶段推进：{from} → {to}', 'Stage moved: {from} → {to}', 'Etapa: {from} → {to}'],
   'detail.entry.advanced': ['状态 {status}｜下一步：{next}（{owner}，{due}）', 'Status {status} | next: {next} ({owner}, {due})', 'Estado {status} | siguiente: {next} ({owner}, {due})'],
+  'detail.entry.chat': ['发送消息：{message}', 'Message sent: {message}', 'Mensaje enviado: {message}'],
 
   'weekly.title': ['每周视图', 'Weekly view', 'Vista semanal'],
   'weekly.desc': ['每周 30 分钟过一遍。每件事只回答四个问题：现在到哪、下一步是什么、谁做、什么时候完成。',
@@ -321,6 +360,11 @@ const STR = {
   'modal.file.url': ['链接', 'Link', 'Enlace'],
   'modal.file.hint': ['文件本身放在 Google Drive 或飞书云盘，这里只保存链接。', 'The file itself stays in Google Drive or Lark Drive; only the link is saved here.', 'El archivo está en Google Drive o Lark; aquí solo se guarda el enlace.'],
   'modal.file.submit': ['添加', 'Add', 'Añadir'],
+  'modal.chat.title': ['事项聊天', 'Matter chat', 'Chat del asunto'],
+  'modal.chat.to': ['发送给事项成员', 'Send to matter members', 'Enviar a los miembros del asunto'],
+  'modal.chat.message': ['消息', 'Message', 'Mensaje'],
+  'modal.chat.placeholder': ['输入要发给事项成员的消息…', 'Type a message for the matter members…', 'Escribe un mensaje para los miembros del asunto…'],
+  'modal.chat.send': ['发送消息', 'Send message', 'Enviar mensaje'],
   'modal.complete.title': ['完成当前步骤', 'Complete the current step', 'Completar el paso actual'],
   'modal.complete.stage': ['现在这一步要做什么？', 'What needs to be done in this step?', '¿Qué hay que hacer en este paso?'],
   'modal.complete.nextOwner': ['下一步负责人', 'Owner of the next step', 'Responsable del próximo paso'],
@@ -392,6 +436,9 @@ const STR = {
   'toast.purged': ['已彻底删除', 'Permanently deleted', 'Eliminado definitivamente'],
   'toast.stepDone': ['已完成这一步，事项进入下一步', 'Step completed — the matter moved on', 'Paso completado: el asunto ha avanzado'],
   'toast.fileAdded': ['已添加文件链接', 'File link added', 'Enlace añadido'],
+  'toast.chatSent': ['消息已发送', 'Message sent', 'Mensaje enviado'],
+  'toast.needMessage': ['请输入消息', 'Please enter a message', 'Escribe un mensaje'],
+  'toast.markedRead': ['已标为已读', 'Marked as read', 'Marcado como leído'],
   'toast.loggedOut': ['已退出登录', 'Signed out', 'Sesión cerrada'],
   'toast.switched': ['已切换到 {name}', 'Switched to {name}', 'Cambiado a {name}'],
   'toast.reset': ['已重置为演示数据', 'Demo data restored', 'Datos de demo restablecidos'],
@@ -837,15 +884,16 @@ async function pushRemote() {
       if (r.status === 404) throw new Error('tables-missing');
       if (!r.ok) throw new Error('HTTP ' + r.status);
     }
-    const fresh = logs.filter(l => !sync.syncedLogs.has(l.id));
-    if (fresh.length) {
-      const rows = fresh.map(l => ({ id: l.id, matter_id: String(l.matterId), data: l }));
+    // 已读状态会修改旧日志，所以每次都 upsert 全部日志，确保其他设备同步。
+    if (logs.length) {
+      const rows = logs.map(l => ({ id: l.id, matter_id: String(l.matterId), data: l }));
       const r = await sbFetch('/logs', { method: 'POST', headers: UPSERT, body: JSON.stringify(rows) });
-      if (r.ok) fresh.forEach(l => sync.syncedLogs.add(l.id));
+      if (r.ok) logs.forEach(l => sync.syncedLogs.add(l.id));
     }
     await sbFetch('/meta', { method: 'POST', headers: UPSERT, body: JSON.stringify([{ key: 'seq', value: seq }]) });
     for (const id of [...sync.purged]) {
       await sbFetch('/matters?id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
+      await sbFetch('/logs?matter_id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
       sync.purged.delete(id);
     }
     sync.status = 'ok';
@@ -918,9 +966,29 @@ function addLog(matterId, by, text) {
   logs.push({ id: 'l' + Math.random().toString(36).slice(2, 9), matterId, at: Date.now(), by, text });
   save(KEY.logs, logs);
 }
-function addLogKey(matterId, by, key, vars) {
-  logs.push({ id: 'l' + Math.random().toString(36).slice(2, 9), matterId, at: Date.now(), by, key, vars });
+function noticeRecipients(m, actor, explicit) {
+  const ids = explicit || [...(m && m.team || []), m && m.owner];
+  return [...new Set(ids.filter(Boolean))].filter(id => id !== actor && USER[id]);
+}
+function noticeVars(m, actor, extra) {
+  return Object.assign({
+    actor: (USER[actor] || {}).name || actor,
+    title: m ? m.title : '',
+  }, extra || {});
+}
+function addLogKey(matterId, by, key, vars, notice) {
+  const m = matterById(matterId);
+  const entry = { id: 'l' + Math.random().toString(36).slice(2, 9), matterId, at: Date.now(), by, key, vars };
+  if (notice && notice.key) {
+    entry.notice = { key: notice.key, vars: notice.vars || {} };
+    entry.notifyTo = noticeRecipients(m, by, notice.to);
+    entry.readBy = [by];
+    entry.matterTitle = m ? m.title : notice.title || '';
+    entry.matterNo = m ? m.no : notice.no || '';
+  }
+  logs.push(entry);
   save(KEY.logs, logs);
+  return entry;
 }
 function resolveVar(v) {
   if (v && typeof v === 'object' && !Array.isArray(v)) {
@@ -937,6 +1005,26 @@ function logText(l) {
   const vars = {};
   Object.keys(l.vars || {}).forEach(k => { vars[k] = resolveVar(l.vars[k]); });
   return t(l.key, vars);
+}
+function inboxEntries(user) {
+  if (!user) return [];
+  return logs.filter(l => l.notice && (l.notifyTo || []).includes(user.id)).sort((a, b) => b.at - a.at);
+}
+function unreadNotifications(user) {
+  return inboxEntries(user).filter(l => !(l.readBy || []).includes(user.id));
+}
+function inboxText(l) {
+  if (!l || !l.notice) return '';
+  const vars = {};
+  Object.keys(l.notice.vars || {}).forEach(k => { vars[k] = resolveVar(l.notice.vars[k]); });
+  return t(l.notice.key, vars);
+}
+function markNotificationRead(id, userId) {
+  const l = logs.find(x => x.id === id);
+  if (!l || !(l.notifyTo || []).includes(userId)) return false;
+  l.readBy = [...new Set([...(l.readBy || []), userId])];
+  commit();
+  return true;
 }
 function setLang(id) {
   if (LANG_INDEX[id] === undefined) return;
@@ -1043,12 +1131,18 @@ function navFor(route) {
     ['#/', 'nav.dashboard'],
     ['#/matters', 'nav.matters'],
     ['#/weekly', 'nav.weekly'],
+    ['#/inbox', 'nav.inbox'],
     ['#/settings', 'nav.settings'],
     ['#/trash', 'nav.trash'],
   ];
   return items.map(([href, key]) => {
     const active = (href === '#/' && (route === '/' || route === '')) || (href !== '#/' && route.startsWith(href.slice(1)));
-    const badge = key === 'nav.matters' ? `<span class="nav-count">${visibleMatters(currentUser()).length}</span>` : '';
+    let badge = '';
+    if (key === 'nav.matters') badge = `<span class="nav-count">${visibleMatters(currentUser()).length}</span>`;
+    if (key === 'nav.inbox') {
+      const unread = unreadNotifications(currentUser()).length;
+      if (unread) badge = `<span class="nav-count unread-count">${unread}</span>`;
+    }
     return `<a href="${href}" class="${active ? 'active' : ''}"><span class="nav-label">${esc(t(key))}${badge}</span></a>`;
   }).join('');
 }
@@ -1167,6 +1261,7 @@ function matterRowsHTML() {
       <td>${esc(L(m.next))}</td>
       <td class="nw">${fmtDateShort(m.due)}<div class="small muted">${dueText(m.due)}</div></td>
       <td class="nw">${esc(waitLabel(m.waiting))}</td>
+      <td class="nw"><button class="btn btn-sm" type="button" data-action="chat-matter" data-id="${m.id}">${esc(t('th.chat'))}</button></td>
     </tr>`).join('');
 }
 
@@ -1211,7 +1306,7 @@ function viewMatters() {
         <thead><tr>
           <th>${esc(t('th.no'))}</th><th>${esc(t('th.client'))}</th><th>${esc(t('th.title'))}</th>
           <th>${esc(t('th.area'))}</th><th>${esc(t('th.owner'))}</th><th>${esc(t('th.status'))}</th>
-          <th>${esc(t('th.next'))}</th><th>${esc(t('th.due'))}</th><th>${esc(t('th.waiting'))}</th>
+          <th>${esc(t('th.next'))}</th><th>${esc(t('th.due'))}</th><th>${esc(t('th.waiting'))}</th><th>${esc(t('th.chat'))}</th>
         </tr></thead>
         <tbody id="matter-rows">${matterRowsHTML() || ''}</tbody>
       </table>
@@ -1220,6 +1315,30 @@ function viewMatters() {
     <div class="legend">
       <span>${esc(t('legend.green'))}</span><span>${esc(t('legend.yellow'))}</span><span>${esc(t('legend.red'))}</span>
     </div>`;
+}
+
+/* ------------------------------ 视图：收件箱 ------------------------------ */
+
+function viewInbox() {
+  const u = currentUser();
+  const entries = inboxEntries(u);
+  const rows = entries.length ? entries.map(l => {
+    const read = (l.readBy || []).includes(u.id);
+    const actor = (USER[l.by] || {}).name || l.by;
+    return `<div class="inbox-item ${read ? 'is-read' : 'is-unread'}">
+      <div class="inbox-avatar">${esc((USER[l.by] || {}).short || String(actor).slice(0, 1))}</div>
+      <div class="inbox-main">
+        <div class="inbox-message">${esc(inboxText(l))}</div>
+        <div class="inbox-meta">${esc(actor)} · ${esc(fmtStamp(l.at))} · ${esc(l.matterNo || '')}</div>
+      </div>
+      <div class="inbox-action">${read
+        ? `<span class="read-state">✓ ${esc(t('inbox.read'))}</span>`
+        : `<button class="btn btn-sm btn-primary" type="button" data-action="mark-read" data-id="${esc(l.id)}">${esc(t('inbox.markRead'))}</button>`}
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty">${esc(t('inbox.empty'))}</div>`;
+  return `<div class="page-head"><div><h1>${esc(t('inbox.title'))}</h1><div class="desc">${esc(t('inbox.desc'))}</div></div></div>
+    <div class="card inbox-list">${rows}</div>`;
 }
 
 /* ------------------------------ 视图：事项详情 ------------------------------ */
@@ -1592,11 +1711,31 @@ function modalFile(mo) {
   );
 }
 
+function modalChat(mo) {
+  const m = matterById(mo.matterId);
+  if (!m || !canSee(currentUser(), m)) return '';
+  const recipients = [...new Set([...(m.team || []), m.owner])]
+    .filter(id => id !== currentUser().id && USER[id])
+    .map(id => USER[id].name);
+  return modalFrame(
+    t('modal.chat.title') + ' · ' + L(m.title),
+    `<form id="chat-form" data-action="send-chat" data-id="${m.id}">
+       <div class="field"><label>${esc(t('modal.chat.to'))}</label>
+         <div class="chat-recipients">${recipients.map(name => `<span class="tag">${esc(name)}</span>`).join('')}</div></div>
+       <div class="field"><label class="req">${esc(t('modal.chat.message'))}</label>
+         <textarea name="message" rows="5" placeholder="${esc(t('modal.chat.placeholder'))}" autocomplete="off"></textarea></div>
+     </form>`,
+    `<button class="btn" type="button" data-action="close-modal">${esc(t('modal.cancel'))}</button>
+     <button class="btn btn-primary" type="submit" form="chat-form">${esc(t('modal.chat.send'))}</button>`
+  );
+}
+
 function renderModal() {
   const mo = state.modal;
   if (!mo) return '';
   if (mo.type === 'new-matter') return modalNewMatter();
   if (mo.type === 'file') return modalFile(mo);
+  if (mo.type === 'chat') return modalChat(mo);
   if (mo.type === 'complete-step') return modalCompleteStep(mo);
   if (mo.type === 'confirm') return modalConfirm(mo);
   if (mo.type === 'notice') return modalNotice(mo);
@@ -1670,6 +1809,7 @@ function render() {
   else if (route.startsWith('/matters/')) content = viewMatter(route.split('/')[2]);
   else if (route.startsWith('/matters')) content = viewMatters();
   else if (route.startsWith('/weekly')) content = viewWeekly();
+  else if (route.startsWith('/inbox')) content = viewInbox();
   else if (route.startsWith('/settings')) content = viewSettings();
   else if (route.startsWith('/trash')) content = viewTrash();
   else content = viewDashboard();
@@ -1737,7 +1877,15 @@ function completeStep(id, data) {
     if (!m.team.includes(m.owner)) m.team.push(m.owner);
   }
 
-  addLogKey(id, u.id, 'detail.entry.stepDone', { text: done.text, owner: (USER[done.owner] || {}).name || done.owner });
+  addLogKey(id, u.id, 'detail.entry.stepDone', { text: done.text, owner: (USER[done.owner] || {}).name || done.owner }, {
+    key: 'inbox.stepDone',
+    vars: noticeVars(m, u.id, {
+      step: done.text,
+      next: m.next,
+      owner: (USER[m.nextOwner] || {}).name || m.nextOwner,
+      status: { __t: 'status.' + m.status + '.short', prefix: STATUS[m.status].dot + ' ' },
+    }),
+  });
   if (beforeStage !== m.stage) addLogKey(id, u.id, 'detail.entry.stageMove', { from: { __stage: beforeStage }, to: { __stage: m.stage } });
   addLogKey(id, u.id, 'detail.entry.advanced', {
     status: { __t: 'status.' + m.status, prefix: STATUS[m.status].dot + ' ' },
@@ -1770,7 +1918,10 @@ function undoStep(id) {
     if (s.prev.team) m.team = s.prev.team.slice();
   }
   m.steps = (m.steps || []).filter(x => x !== s);
-  addLogKey(id, u.id, 'detail.entry.stepUndo', { text: s.text });
+  addLogKey(id, u.id, 'detail.entry.stepUndo', { text: s.text }, {
+    key: 'inbox.stepUndo',
+    vars: noticeVars(m, u.id, { step: s.text, owner: (USER[s.owner] || {}).name || s.owner }),
+  });
   commit();
   toast(t('toast.undoDone', { text: L(s.text) }));
   return true;
@@ -1797,7 +1948,14 @@ function createMatter(data) {
   };
   if (!m.team.includes(m.owner)) m.team.push(m.owner);
   matters.push(m);
-  addLogKey(id, currentUser().id, 'detail.entry.new', { no: m.no, area: areaName(m.area) });
+  addLogKey(id, currentUser().id, 'detail.entry.new', { no: m.no, area: areaName(m.area) }, {
+    key: 'inbox.new',
+    vars: noticeVars(m, currentUser().id, {
+      next: m.next,
+      owner: (USER[m.nextOwner] || {}).name || m.nextOwner,
+      status: { __t: 'status.' + m.status + '.short', prefix: STATUS[m.status].dot + ' ' },
+    }),
+  });
   commit();
   toast(t('toast.created', { no: m.no }));
   return m;
@@ -1846,8 +2004,15 @@ function saveMatterFromDom(id) {
   if (before.due !== m.due) addLogKey(id, currentUser().id, 'detail.entry.due', { date: { __date: m.due }, rel: { __rel: m.due } });
   if (before.owner !== m.owner) addLogKey(id, currentUser().id, 'detail.entry.owner', { name: USER[m.owner].name });
   if (before.waiting !== m.waiting) addLogKey(id, currentUser().id, 'detail.entry.waiting', { w: { __t: 'wait.' + m.waiting } });
-  if (changes.length && !changes.some(f => ['status', 'next', 'due', 'owner', 'waiting'].includes(f))) {
-    addLogKey(id, currentUser().id, 'detail.entry.edited');
+  if (changes.length) {
+    addLogKey(id, currentUser().id, 'detail.entry.edited', {}, {
+      key: 'inbox.edited',
+      vars: noticeVars(m, currentUser().id, {
+        next: m.next,
+        owner: (USER[m.nextOwner] || {}).name || m.nextOwner,
+        status: { __t: 'status.' + m.status + '.short', prefix: STATUS[m.status].dot + ' ' },
+      }),
+    });
   }
   commit();
   toast(t('toast.saved'));
@@ -1929,6 +2094,14 @@ document.addEventListener('click', ev => {
       state.modal = null; render(); break;
     case 'open-matter':
       go(`#/matters/${el.getAttribute('data-id')}`); break;
+    case 'chat-matter': {
+      const m = matterById(el.getAttribute('data-id'));
+      if (m && canSee(currentUser(), m)) { state.modal = { type: 'chat', matterId: m.id }; render(); }
+      break;
+    }
+    case 'mark-read':
+      if (markNotificationRead(el.getAttribute('data-id'), currentUser().id)) { render(); toast(t('toast.markedRead')); }
+      break;
     case 'save-matter':
       saveMatterFromDom(el.getAttribute('data-id')); break;
     case 'add-file': {
@@ -1941,7 +2114,9 @@ document.addEventListener('click', ev => {
       const m = matterById(id);
       const f = m.files[i];
       m.files.splice(i, 1);
-      addLogKey(id, currentUser().id, 'detail.entry.fileRemove', { name: L(f.name) });
+      addLogKey(id, currentUser().id, 'detail.entry.fileRemove', { name: f.name }, {
+        key: 'inbox.fileRemove', vars: noticeVars(m, currentUser().id, { name: f.name }),
+      });
       commit(); render();
       break;
     }
@@ -2001,7 +2176,9 @@ document.addEventListener('click', ev => {
       if (!m) break;
       if (currentUser().id !== m.owner && !isAdmin()) { toast(t('toast.onlyOwnerDelete', { name: (USER[m.owner] || {}).name || m.owner })); break; }
       m.deletedAt = Date.now();
-      addLogKey(id, currentUser().id, 'detail.entry.deleted');
+      addLogKey(id, currentUser().id, 'detail.entry.deleted', {}, {
+        key: 'inbox.deleted', vars: noticeVars(m, currentUser().id),
+      });
       commit();
       state.modal = null;
       go('#/matters');
@@ -2070,7 +2247,9 @@ document.addEventListener('click', ev => {
       if (!m) break;
       if (currentUser().id !== m.owner) { toast(t('toast.adminRestore', { name: (USER[m.owner] || {}).name || m.owner })); break; }
       m.deletedAt = null;
-      addLogKey(id, currentUser().id, 'detail.entry.restored');
+      addLogKey(id, currentUser().id, 'detail.entry.restored', {}, {
+        key: 'inbox.restored', vars: noticeVars(m, currentUser().id),
+      });
       commit();
       go(`#/matters/${m.id}`);
       render();
@@ -2190,7 +2369,9 @@ document.addEventListener('submit', ev => {
     if (!m) return;
     m.files = m.files || [];
     m.files.push({ name, url: url || '#' });
-    addLogKey(id, currentUser().id, 'detail.entry.fileAdd', { name });
+    addLogKey(id, currentUser().id, 'detail.entry.fileAdd', { name }, {
+      key: 'inbox.fileAdd', vars: noticeVars(m, currentUser().id, { name }),
+    });
     commit();
     state.modal = null;
     render();
@@ -2199,6 +2380,20 @@ document.addEventListener('submit', ev => {
   if (action === 'confirm-complete-step') {
     const ok = completeStep(form.getAttribute('data-id'), readForm(form));
     if (ok) { state.modal = null; render(); }
+  }
+  if (action === 'send-chat') {
+    const id = form.getAttribute('data-id');
+    const m = matterById(id);
+    const message = String((form.message && form.message.value) || '').trim();
+    if (!m || !canSee(currentUser(), m)) return;
+    if (!message) { toast(t('toast.needMessage')); return; }
+    addLogKey(id, currentUser().id, 'detail.entry.chat', { message }, {
+      key: 'inbox.chat', vars: noticeVars(m, currentUser().id, { message }),
+    });
+    commit();
+    state.modal = null;
+    render();
+    toast(t('toast.chatSent'));
   }
 });
 
