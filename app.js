@@ -154,6 +154,7 @@ const STR = {
   'system.title': ['LCB 新通知', 'New LCB notification', 'Nueva notificación de LCB'],
   'inbox.empty': ['还没有通知。', 'No notifications yet.', 'Todavía no hay notificaciones.'],
   'inbox.markRead': ['已读', 'Mark read', 'Marcar como leído'],
+  'inbox.delete': ['删除消息', 'Delete message', 'Eliminar mensaje'],
   'inbox.read': ['已读', 'Read', 'Leído'],
   'inbox.unread': ['未读', 'Unread', 'No leído'],
   'inbox.new': ['{actor} 新建了事项“{title}”。当前步骤：“{next}”，由 {owner} 负责。当前事项状态：{status}。',
@@ -447,6 +448,11 @@ const STR = {
     'Please note: after turning off system notifications, you will not receive alert notifications when anyone performs an action. We strongly recommend keeping them enabled for team collaboration!',
     'Atención: al desactivar las notificaciones del sistema, no recibirá avisos sonoros cuando alguien realice una acción. Para la colaboración del equipo, recomendamos encarecidamente mantenerlas activadas.'],
   'modal.disableSystem.confirm': ['确认关闭', 'Turn off', 'Desactivar'],
+  'modal.deleteNotification.title': ['删除这条消息？', 'Delete this message?', '¿Eliminar este mensaje?'],
+  'modal.deleteNotification.body': ['删除后，这条消息将从您的通知中移除，但不会影响事项动态或其他成员收到的通知。',
+    'This message will be removed from your notifications. Matter activity and other members’ copies will not be affected.',
+    'Este mensaje se eliminará de sus notificaciones, sin afectar la actividad del asunto ni las copias de otros miembros.'],
+  'modal.deleteNotification.confirm': ['删除消息', 'Delete message', 'Eliminar mensaje'],
   'modal.denyUndo.title': ['无法撤销', 'Cannot undo', 'No se puede deshacer'],
   'modal.denyUndo.body': ['只有管理员，或刚完成这一步的人，可以撤销。<br><br>最后完成这一步的是 {name}。',
     'Only an admin, or the person who completed the step, can undo.<br><br>The last completion was by {name}.',
@@ -475,6 +481,7 @@ const STR = {
   'toast.markedRead': ['已标为已读', 'Marked as read', 'Marcado como leído'],
   'toast.systemEnabled': ['✅已开启系统通知', '✅ System notifications enabled', '✅ Notificaciones del sistema activadas'],
   'toast.systemDisabled': ['❎已关闭系统通知', '❎ System notifications turned off', '❎ Notificaciones del sistema desactivadas'],
+  'toast.notificationDeleted': ['已删除消息', 'Message deleted', 'Mensaje eliminado'],
   'toast.systemDenied': ['系统通知已被浏览器阻止', 'System notifications have been blocked by the browser', 'El navegador ha bloqueado las notificaciones del sistema'],
   'toast.loggedOut': ['已退出登录', 'Signed out', 'Sesión cerrada'],
   'toast.switched': ['已切换到 {name}', 'Switched to {name}', 'Cambiado a {name}'],
@@ -1071,7 +1078,8 @@ function logText(l) {
 }
 function inboxEntries(user) {
   if (!user) return [];
-  return logs.filter(l => l.notice && (l.notifyTo || []).includes(user.id)).sort((a, b) => b.at - a.at);
+  return logs.filter(l => l.notice && (l.notifyTo || []).includes(user.id) && !(l.deletedBy || []).includes(user.id))
+    .sort((a, b) => b.at - a.at);
 }
 function unreadNotifications(user) {
   return inboxEntries(user).filter(l => !(l.readBy || []).includes(user.id));
@@ -1162,6 +1170,13 @@ function markNotificationRead(id, userId) {
   const l = logs.find(x => x.id === id);
   if (!l || !(l.notifyTo || []).includes(userId)) return false;
   l.readBy = [...new Set([...(l.readBy || []), userId])];
+  commit();
+  return true;
+}
+function deleteNotificationForUser(id, userId) {
+  const l = logs.find(x => x.id === id);
+  if (!l || !(l.notifyTo || []).includes(userId)) return false;
+  l.deletedBy = [...new Set([...(l.deletedBy || []), userId])];
   commit();
   return true;
 }
@@ -1507,6 +1522,7 @@ function viewInbox() {
       <div class="inbox-action">${read
         ? `<span class="read-state">✓ ${esc(t('inbox.read'))}</span>`
         : `<button class="btn btn-sm btn-primary" type="button" data-action="mark-read" data-id="${esc(l.id)}">${esc(t('inbox.markRead'))}</button>`}
+        <button class="btn btn-sm btn-danger" type="button" data-action="delete-notification" data-id="${esc(l.id)}">${esc(t('inbox.delete'))}</button>
       </div>
     </div>`;
   }).join('') : `<div class="empty">${esc(t('inbox.empty'))}</div>`;
@@ -2281,6 +2297,21 @@ document.addEventListener('click', ev => {
     }
     case 'mark-read':
       if (markNotificationRead(el.getAttribute('data-id'), currentUser().id)) { render(); toast(t('toast.markedRead')); }
+      break;
+    case 'delete-notification':
+      state.modal = {
+        type: 'confirm', titleKey: 'modal.deleteNotification.title', body: t('modal.deleteNotification.body'),
+        confirmKey: 'modal.deleteNotification.confirm', action: 'confirm-delete-notification', id: el.getAttribute('data-id'),
+        danger: true,
+      };
+      render();
+      break;
+    case 'confirm-delete-notification':
+      if (deleteNotificationForUser(el.getAttribute('data-id'), currentUser().id)) {
+        state.modal = null;
+        render();
+        toast(t('toast.notificationDeleted'));
+      }
       break;
     case 'enable-system-notifications':
       enableSystemNotifications();
