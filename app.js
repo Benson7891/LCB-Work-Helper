@@ -33,6 +33,8 @@ const sync = {
   error: '',
   dirty: false,        // 本地有还没推上去的改动
   busy: false,
+  retryCount: 0,
+  retryTimer: null,
   syncedLogs: new Set(),
   purged: new Set(),   // 要彻底删掉的远端事项
 };
@@ -79,6 +81,7 @@ const STR = {
   'sync.ok': ['已同步', 'Synced', 'Sincronizado'],
   'sync.loading': ['同步中…', 'Syncing…', 'Sincronizando…'],
   'sync.error': ['未同步', 'Not synced', 'Sin sincronizar'],
+  'sync.failedClick': ['未同步，点这里！', 'Not synced — click here!', 'Sin sincronizar: ¡haz clic aquí!'],
   'sync.offline': ['离线：改动只留在这台设备', 'Offline: changes stay on this device', 'Sin conexión: los cambios quedan aquí'],
   'sync.tablesMissing': ['数据表还没建好，请在 Supabase 里执行建表脚本', 'The tables are missing — run the setup SQL in Supabase', 'Faltan las tablas: ejecuta el SQL de configuración en Supabase'],
   'sync.tipOk': ['三台设备共用同一份数据 · 最近同步 {time} · 点一下立刻刷新',
@@ -187,6 +190,9 @@ const STR = {
   'inbox.chat': ['{actor} 在事项“{title}”中发送消息：“{message}”',
     '{actor} sent a message in “{title}”: “{message}”',
     '{actor} envió un mensaje en «{title}»: «{message}»'],
+  'inbox.readReceipt': ['{reader} 已读您的通知【{preview}】',
+    '{reader} read your notification [{preview}]',
+    '{reader} leyó su notificación [{preview}]'],
 
   'status.green': ['绿 · 正常', 'Green · On track', 'Verde · En curso'],
   'status.green.short': ['正常', 'On track', 'En curso'],
@@ -312,6 +318,7 @@ const STR = {
   'detail.entry.stageMove': ['阶段推进：{from} → {to}', 'Stage moved: {from} → {to}', 'Etapa: {from} → {to}'],
   'detail.entry.advanced': ['状态 {status}｜下一步：{next}（{owner}，{due}）', 'Status {status} | next: {next} ({owner}, {due})', 'Estado {status} | siguiente: {next} ({owner}, {due})'],
   'detail.entry.chat': ['发送消息：{message}', 'Message sent: {message}', 'Mensaje enviado: {message}'],
+  'detail.entry.readReceipt': ['{reader} 已读通知', '{reader} read the notification', '{reader} leyó la notificación'],
 
   'weekly.title': ['每周视图', 'Weekly view', 'Vista semanal'],
   'weekly.desc': ['每周 30 分钟过一遍。每件事只回答四个问题：现在到哪、下一步是什么、谁做、什么时候完成。',
@@ -868,6 +875,29 @@ function sbFetch(path, opts) {
 }
 
 const UPSERT = { Prefer: 'resolution=merge-duplicates,return=minimal' };
+const SYNC_RETRY_LIMIT = 3;
+const SYNC_RETRY_DELAY_MS = 800;
+
+function resetSyncRetries() {
+  sync.retryCount = 0;
+  if (sync.retryTimer) clearTimeout(sync.retryTimer);
+  sync.retryTimer = null;
+}
+function queueSyncRetry(kind) {
+  sync.retryCount += 1;
+  if (sync.retryCount >= SYNC_RETRY_LIMIT) {
+    sync.status = 'error';
+    sync.retryTimer = null;
+    return false;
+  }
+  sync.status = 'loading';
+  if (sync.retryTimer) clearTimeout(sync.retryTimer);
+  sync.retryTimer = setTimeout(() => {
+    sync.retryTimer = null;
+    if (kind === 'push') pushRemote(); else pullRemote();
+  }, SYNC_RETRY_DELAY_MS);
+  return true;
+}
 
 // 后台同步不能打断用户：正在填表、操作弹窗或选中文字时先不刷新。
 function userIsInteracting() {
@@ -917,12 +947,17 @@ async function pullRemote(opts) {
     save(KEY.logs, logs);
     save(KEY.seq, seq);
     sync.status = 'ok';
+    resetSyncRetries();
     sync.lastAt = Date.now();
     sync.error = '';
     if (background && !changed) { syncReady = true; sync.busy = false; return; }
   } catch (e) {
-    sync.status = 'error';
     sync.error = String((e && e.message) || e);
+    sync.busy = false;
+    syncReady = true;
+    queueSyncRetry('pull');
+    render();
+    return;
   }
   syncReady = true;
   sync.busy = false;
@@ -932,6 +967,8 @@ async function pullRemote(opts) {
 
 async function pushRemote() {
   if (!REMOTE_ENABLED) return;
+  if (sync.busy) return;
+  if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
   sync.busy = true;
   try {
     if (matters.length) {
@@ -953,14 +990,18 @@ async function pushRemote() {
       sync.purged.delete(id);
     }
     sync.status = 'ok';
+    resetSyncRetries();
     sync.lastAt = Date.now();
     sync.error = '';
     sync.dirty = false;
   } catch (e) {
     // 推失败：把改动留在本机，标成"未同步"，下次同步时再试
-    sync.status = 'error';
     sync.error = String((e && e.message) || e);
     sync.dirty = true;
+    sync.busy = false;
+    queueSyncRetry('push');
+    render();
+    return;
   }
   sync.busy = false;
   render();
@@ -971,6 +1012,7 @@ let syncReady = !REMOTE_ENABLED;   // 首次拉取完成后才允许往服务器
 function schedulePush() {
   if (!REMOTE_ENABLED) return;
   sync.dirty = true;
+  if (sync.status === 'error') resetSyncRetries();
   if (!syncReady) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(() => { pushRemote(); }, 500);
@@ -1062,6 +1104,11 @@ function addLogKey(matterId, by, key, vars, notice) {
 }
 function resolveVar(v) {
   if (v && typeof v === 'object' && !Array.isArray(v)) {
+    if (v.__noticePreview) {
+      const previewVars = {};
+      Object.keys(v.__noticePreview.vars || {}).forEach(k => { previewVars[k] = resolveVar(v.__noticePreview.vars[k]); });
+      return truncateNoticeText(t(v.__noticePreview.key, previewVars), v.max || 15);
+    }
     if (v.__t) return (v.prefix || '') + t(v.__t, v.vars);
     if (v.__date !== undefined) return fmtDate(v.__date);
     if (v.__rel !== undefined) return dueText(v.__rel);
@@ -1089,6 +1136,10 @@ function inboxText(l) {
   const vars = {};
   Object.keys(l.notice.vars || {}).forEach(k => { vars[k] = resolveVar(l.notice.vars[k]); });
   return t(l.notice.key, vars);
+}
+function truncateNoticeText(text, max) {
+  const chars = [...String(text || '')];
+  return chars.length > max ? chars.slice(0, max).join('') + '…' : chars.join('');
 }
 function systemNotificationState() {
   if (typeof Notification === 'undefined') return 'unsupported';
@@ -1169,7 +1220,16 @@ function deliverSystemNotifications(nextLogs) {
 function markNotificationRead(id, userId) {
   const l = logs.find(x => x.id === id);
   if (!l || !(l.notifyTo || []).includes(userId)) return false;
+  if ((l.readBy || []).includes(userId)) return false;
   l.readBy = [...new Set([...(l.readBy || []), userId])];
+  if (l.by !== userId && USER[l.by] && l.notice && l.notice.key !== 'inbox.readReceipt') {
+    const reader = (USER[userId] || {}).name || userId;
+    addLogKey(l.matterId, userId, 'detail.entry.readReceipt', { reader }, {
+      key: 'inbox.readReceipt',
+      vars: { reader, preview: { __noticePreview: l.notice, max: 15 } },
+      to: [l.by], title: l.matterTitle, no: l.matterNo,
+    });
+  }
   commit();
   return true;
 }
@@ -1293,7 +1353,7 @@ function syncBadge() {
   if (st === 'error') {
     const msg = sync.error === 'tables-missing' ? t('sync.tablesMissing') : sync.error;
     return `<button class="sync-pill error" type="button" data-action="sync-now"
-      title="${esc(t('sync.tipError', { msg }))}">⚠ ${esc(t('sync.error'))}</button>`;
+      title="${esc(t('sync.tipError', { msg }))}">⚠ ${esc(t('sync.failedClick'))}</button>`;
   }
   const time = sync.lastAt ? fmtStamp(sync.lastAt).slice(11) : '—';
   return `<button class="sync-pill ok" type="button" data-action="sync-now"
@@ -2271,6 +2331,9 @@ document.addEventListener('click', ev => {
       setLang(el.getAttribute('data-lang'));
       break;
     case 'sync-now':
+      resetSyncRetries();
+      sync.status = 'loading';
+      render();
       if (sync.dirty) { pushRemote(); toast(t('sync.loading')); }
       else { toast(t('sync.loading')); pullRemote(); }
       break;
@@ -2668,9 +2731,14 @@ render();
 
 if (REMOTE_ENABLED) {
   pullRemote({ initial: true });
-  setInterval(() => { if (!sync.dirty) pullRemote({ background: true }); }, SYNC_EVERY_MS);
+  setInterval(() => {
+    if (!sync.dirty && sync.status !== 'error') pullRemote({ background: true });
+  }, SYNC_EVERY_MS);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !sync.dirty) pullRemote({ background: true });
   });
-  window.addEventListener('online', () => { if (sync.dirty) pushRemote(); else pullRemote({ background: true }); });
+  window.addEventListener('online', () => {
+    resetSyncRetries();
+    if (sync.dirty) pushRemote(); else pullRemote({ background: true });
+  });
 }
