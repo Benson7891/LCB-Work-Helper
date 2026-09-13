@@ -361,6 +361,8 @@ const STR = {
   'settings.trashMeta': ['{client} · 删除于 {when}', '{client} · deleted {when}', '{client} · eliminado {when}'],
   'settings.trashRestore': ['恢复', 'Restore', 'Restaurar'],
   'settings.trashPurge': ['彻底删除', 'Delete forever', 'Eliminar definitivamente'],
+  'trash.selectAll': ['全选可操作事项', 'Select all available', 'Seleccionar todos los disponibles'],
+  'trash.bulkPurge': ['批量彻底删除', 'Delete forever in bulk', 'Eliminar definitivamente en lote'],
   'settings.trashAdminOnly': ['仅事项负责人{name}可操作', 'Only matter owner {name} can act', 'Solo el responsable {name} puede realizar esta acción'],
   'settings.trashHint': ['恢复或彻底删除事项，只能由该事项的<b>负责人</b>操作。',
     'Only the matter <b>owner</b> can restore or permanently delete it.',
@@ -435,6 +437,11 @@ const STR = {
     '“{no} {title}” and all of its activity history will be permanently deleted. This cannot be undone.',
     '«{no} {title}» y todo su historial se eliminarán para siempre. No se puede deshacer.'],
   'modal.purge.confirm': ['彻底删除', 'Delete forever', 'Eliminar definitivamente'],
+  'modal.bulkPurge.title': ['批量彻底删除？', 'Delete forever in bulk?', '¿Eliminar definitivamente en lote?'],
+  'modal.bulkPurge.body': ['选中的 {n} 条事项及其全部动态记录会被永久删除，无法恢复。',
+    'The {n} selected matters and all their activity history will be permanently deleted. This cannot be undone.',
+    'Los {n} asuntos seleccionados y todo su historial se eliminarán para siempre. No se puede deshacer.'],
+  'modal.bulkPurge.confirm': ['彻底删除 {n} 条', 'Delete {n} forever', 'Eliminar {n} definitivamente'],
   'modal.denyDelete.title': ['无法删除', 'Cannot delete', 'No se puede eliminar'],
   'modal.denyDelete.body': ['只有项目负责人 <b>{name}</b> 才能删除事项。', 'Only the matter owner, <b>{name}</b>, can delete it.', 'Solo el responsable del asunto, <b>{name}</b>, puede eliminarlo.'],
   'modal.denyStep.title': ['无法完成这一步', 'Cannot complete this step', 'No se puede completar este paso'],
@@ -486,6 +493,7 @@ const STR = {
   'toast.bulkDeleted': ['已删除 {n} 条事项，可在回收站恢复', '{n} matters deleted; you can restore them from the recycle bin', 'Se eliminaron {n} asuntos; puede restaurarlos desde la papelera'],
   'toast.restored': ['已恢复 {no}', 'Restored {no}', 'Restaurado {no}'],
   'toast.purged': ['已彻底删除', 'Permanently deleted', 'Eliminado definitivamente'],
+  'toast.bulkPurged': ['已彻底删除 {n} 条事项', '{n} matters permanently deleted', 'Se eliminaron definitivamente {n} asuntos'],
   'toast.stepDone': ['已完成这一步，事项进入下一步', 'Step completed — the matter moved on', 'Paso completado: el asunto ha avanzado'],
   'toast.fileAdded': ['已添加文件链接', 'File link added', 'Enlace añadido'],
   'toast.chatSent': ['消息已发送', 'Message sent', 'Mensaje enviado'],
@@ -847,6 +855,7 @@ let session = load(KEY.session, null);   // { userId }
 const state = {
   filters: { q: '', area: '', owner: '', status: '', waiting: '' },
   bulkSelected: new Set(),
+  trashSelected: new Set(),
   loginError: '',
   modal: null,
 };
@@ -1857,19 +1866,25 @@ function viewSettings() {
 function viewTrash() {
   const trashed = trashedMatters();
   const u = currentUser();
+  const selectable = trashed.filter(m => u.id === m.owner);
+  const selectedCount = selectable.filter(m => state.trashSelected.has(String(m.id))).length;
+  const allSelected = selectable.length > 0 && selectable.every(m => state.trashSelected.has(String(m.id)));
   return `
     <div class="page-head">
       <div>
         <h1>${esc(t('settings.trash'))}</h1>
         <div class="desc">${esc(t('trash.desc'))}</div>
       </div>
+      <div class="right"><button class="btn btn-danger" type="button" data-action="bulk-purge-trash" ${selectedCount ? '' : 'disabled'}>${esc(t('trash.bulkPurge'))}${selectedCount ? ` (${selectedCount})` : ''}</button></div>
     </div>
     <div class="card card-pad">
       <div class="section-title">${esc(t('settings.trash'))}
+        <label class="trash-select-all"><input class="bulk-check" type="checkbox" data-action="toggle-all-trash" ${allSelected ? 'checked' : ''} ${selectable.length ? '' : 'disabled'}> ${esc(t('trash.selectAll'))}</label>
         <span class="small muted" style="margin-left:auto;font-weight:400">${esc(t('settings.trashCount', { n: trashed.length }))}</span>
       </div>
       ${trashed.length ? trashed.map(m => `
         <div class="trash-row">
+          <input class="bulk-check" type="checkbox" data-action="toggle-trash-matter" data-id="${m.id}" ${state.trashSelected.has(String(m.id)) ? 'checked' : ''} ${u.id === m.owner ? '' : 'disabled'} aria-label="${esc(t('trash.bulkPurge'))}: ${esc(m.no)}">
           <span class="nm"><b>${esc(m.no)} ${esc(L(m.title))}</b>
             <span class="meta">${esc(t('settings.trashMeta', { client: L(m.client), when: fmtStamp(m.deletedAt) }))}</span></span>
           ${u.id === m.owner ? `
@@ -2336,6 +2351,7 @@ document.addEventListener('click', ev => {
     case 'confirm-logout':
       session = null;
       state.bulkSelected.clear();
+      state.trashSelected.clear();
       save(KEY.session, null);
       state.modal = null;
       state.loginError = '';
@@ -2618,6 +2634,7 @@ document.addEventListener('click', ev => {
       if (!m) break;
       if (currentUser().id !== m.owner) { toast(t('toast.adminRestore', { name: (USER[m.owner] || {}).name || m.owner })); break; }
       m.deletedAt = null;
+      state.trashSelected.delete(String(id));
       addLogKey(id, currentUser().id, 'detail.entry.restored', {}, {
         key: 'inbox.restored', vars: noticeVars(m, currentUser().id),
       });
@@ -2644,12 +2661,58 @@ document.addEventListener('click', ev => {
       render();
       break;
     }
+    case 'toggle-trash-matter': {
+      const id = String(el.getAttribute('data-id'));
+      const m = matterById(id);
+      if (!m || !m.deletedAt || currentUser().id !== m.owner) break;
+      if (el.checked) state.trashSelected.add(id); else state.trashSelected.delete(id);
+      render();
+      break;
+    }
+    case 'toggle-all-trash': {
+      const selectable = trashedMatters().filter(m => currentUser().id === m.owner);
+      const selectAll = selectable.length > 0 && !selectable.every(m => state.trashSelected.has(String(m.id)));
+      selectable.forEach(m => selectAll ? state.trashSelected.add(String(m.id)) : state.trashSelected.delete(String(m.id)));
+      render();
+      break;
+    }
+    case 'bulk-purge-trash': {
+      const ids = [...state.trashSelected].filter(id => {
+        const m = matterById(id);
+        return m && m.deletedAt && currentUser().id === m.owner;
+      });
+      if (!ids.length) break;
+      state.modal = {
+        type: 'confirm', titleKey: 'modal.bulkPurge.title', body: t('modal.bulkPurge.body', { n: ids.length }),
+        confirmText: t('modal.bulkPurge.confirm', { n: ids.length }), action: 'confirm-bulk-purge-trash', ids, danger: true,
+      };
+      render();
+      break;
+    }
+    case 'confirm-bulk-purge-trash': {
+      const ids = (state.modal && state.modal.ids || []).filter(id => {
+        const m = matterById(id);
+        return m && m.deletedAt && currentUser().id === m.owner;
+      });
+      ids.forEach(id => { sync.purged.add(String(id)); state.trashSelected.delete(String(id)); });
+      if (ids.length) {
+        const idSet = new Set(ids.map(String));
+        matters = matters.filter(m => !idSet.has(String(m.id)));
+        logs = logs.filter(l => !idSet.has(String(l.matterId)));
+        commit();
+      }
+      state.modal = null;
+      render();
+      if (ids.length) toast(t('toast.bulkPurged', { n: ids.length }));
+      break;
+    }
     case 'confirm-purge-matter': {
       const id = el.getAttribute('data-id');
       const m = matterById(id);
       if (!m) break;
       if (currentUser().id !== m.owner) { toast(t('toast.adminPurge', { name: (USER[m.owner] || {}).name || m.owner })); break; }
       sync.purged.add(String(id));
+      state.trashSelected.delete(String(id));
       matters = matters.filter(x => String(x.id) !== String(id));
       logs = logs.filter(l => String(l.matterId) !== String(id));
       commit();
@@ -2721,7 +2784,7 @@ document.addEventListener('submit', ev => {
       return;
     }
     state.loginError = '';
-    session = { userId: user.id }; state.bulkSelected.clear(); save(KEY.session, session);
+    session = { userId: user.id }; state.bulkSelected.clear(); state.trashSelected.clear(); save(KEY.session, session);
     go('#/'); render();
     toast(t('toast.welcome', { name: user.name.split(' ')[0] }));
     return;

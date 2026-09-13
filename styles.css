@@ -257,6 +257,7 @@ table.grid td.nw{white-space:nowrap}
 .trash-row .nm{flex:1;min-width:160px}
 .trash-row .nm b{display:block;font-weight:600;font-size:14px}
 .trash-row .meta{font-size:12px;color:var(--ink-3);margin-top:1px}
+.trash-select-all{display:inline-flex;align-items:center;gap:6px;margin-left:12px;font-size:12.5px;font-weight:500;color:var(--ink-2);cursor:pointer}
 
 @media (max-width:980px){
   .kpis{grid-template-columns:repeat(2,1fr)}
