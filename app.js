@@ -120,6 +120,7 @@ const STR = {
   'list.descAdmin': ['（管理员，全部事项）', '(admin, all matters)', '(administradora, todos los asuntos)'],
   'list.descMember': ['（只含你是项目成员的事项）', '(only matters you are assigned to)', '(solo asuntos en los que participas)'],
   'list.export': ['导出CSV表格', 'Export CSV spreadsheet', 'Exportar tabla CSV'],
+  'list.bulkDelete': ['批量删除', 'Bulk delete', 'Eliminar en lote'],
   'modal.export.title': ['导出CSV表格', 'Export CSV spreadsheet', 'Exportar tabla CSV'],
   'modal.export.body': ['CSV 表格可用 Excel 打开。', 'CSV spreadsheets can be opened in Excel.', 'Las tablas CSV se pueden abrir con Excel.'],
   'modal.export.confirm': ['下载CSV表格', 'Download CSV', 'Descargar CSV'],
@@ -424,6 +425,11 @@ const STR = {
     'Delete “{no} {title}”?\n\nIt goes to the recycle bin and disappears for you and the team right away; you can restore it in Settings if needed.',
     '¿Eliminar «{no} {title}»?\n\nIrá a la papelera y desaparecerá de inmediato para ti y el equipo; puedes restaurarlo en Ajustes.'],
   'modal.delete.confirm': ['删除', 'Delete', 'Eliminar'],
+  'modal.bulkDelete.title': ['批量删除事项？', 'Delete matters in bulk?', '¿Eliminar asuntos en lote?'],
+  'modal.bulkDelete.body': ['确定删除选中的 {n} 条事项吗？\n\n删除后将进入回收站，需要时可以恢复。',
+    'Delete the {n} selected matters?\n\nThey will be moved to the recycle bin and can be restored later.',
+    '¿Eliminar los {n} asuntos seleccionados?\n\nSe moverán a la papelera y podrán restaurarse más adelante.'],
+  'modal.bulkDelete.confirm': ['删除 {n} 条', 'Delete {n}', 'Eliminar {n}'],
   'modal.purge.title': ['彻底删除？', 'Delete forever?', '¿Eliminar definitivamente?'],
   'modal.purge.body': ['「{no} {title}」和它的全部动态记录会被永久删除，无法恢复。',
     '“{no} {title}” and all of its activity history will be permanently deleted. This cannot be undone.',
@@ -477,6 +483,7 @@ const STR = {
   'toast.saved': ['已保存', 'Saved', 'Guardado'],
   'toast.created': ['已创建 {no}', 'Created {no}', 'Creado {no}'],
   'toast.deleted': ['已删除 {no}，可在设置里恢复', 'Deleted {no}, restorable in Settings', 'Eliminado {no}, restaurable en Ajustes'],
+  'toast.bulkDeleted': ['已删除 {n} 条事项，可在回收站恢复', '{n} matters deleted; you can restore them from the recycle bin', 'Se eliminaron {n} asuntos; puede restaurarlos desde la papelera'],
   'toast.restored': ['已恢复 {no}', 'Restored {no}', 'Restaurado {no}'],
   'toast.purged': ['已彻底删除', 'Permanently deleted', 'Eliminado definitivamente'],
   'toast.stepDone': ['已完成这一步，事项进入下一步', 'Step completed — the matter moved on', 'Paso completado: el asunto ha avanzado'],
@@ -839,6 +846,7 @@ let seq = load(KEY.seq, 0);
 let session = load(KEY.session, null);   // { userId }
 const state = {
   filters: { q: '', area: '', owner: '', status: '', waiting: '' },
+  bulkSelected: new Set(),
   loginError: '',
   modal: null,
 };
@@ -1486,6 +1494,7 @@ function matterRowsHTML() {
   if (!list.length) return '';
   return list.map(m => `
     <tr data-action="open-matter" data-id="${m.id}">
+      <td class="bulk-cell"><input class="bulk-check" type="checkbox" data-action="toggle-bulk-matter" data-id="${m.id}" ${state.bulkSelected.has(String(m.id)) ? 'checked' : ''} ${currentUser().id === m.owner || isAdmin() ? '' : 'disabled'} aria-label="${esc(t('list.bulkDelete'))}: ${esc(m.no)}"></td>
       <td class="nw">${esc(m.no)}</td>
       <td>${esc(L(m.client))}</td>
       <td><b>${esc(L(m.title))}</b>${m.notes ? `<div class="small muted">${esc(L(m.notes))}</div>` : ''}</td>
@@ -1515,6 +1524,12 @@ function viewMatters() {
     .map(w => ({ v: w, t: waitLabel(w) }))
     .sort((a, b) => String(a.t).localeCompare(String(b.t)));
   const n = sorted(filterMatters()).length;
+  const bulkCount = [...state.bulkSelected].filter(id => {
+    const m = matterById(id);
+    return m && !m.deletedAt && canSee(currentUser(), m) && (currentUser().id === m.owner || isAdmin());
+  }).length;
+  const selectable = sorted(filterMatters()).filter(m => currentUser().id === m.owner || isAdmin());
+  const allSelected = selectable.length > 0 && selectable.every(m => state.bulkSelected.has(String(m.id)));
 
   return `
     <div class="page-head">
@@ -1523,6 +1538,7 @@ function viewMatters() {
         <div class="desc">${esc(t('list.desc', { n }))}${esc(t(currentUser().admin ? 'list.descAdmin' : 'list.descMember'))}</div>
       </div>
       <div class="right">
+        <button class="btn btn-danger" type="button" data-action="bulk-delete-matters" ${bulkCount ? '' : 'disabled'}>${esc(t('list.bulkDelete'))}${bulkCount ? ` (${bulkCount})` : ''}</button>
         <button class="btn" type="button" data-action="export-csv">${esc(t('list.export'))}</button>
         <button class="btn btn-primary" type="button" data-action="new-matter">${esc(t('dash.new'))}</button>
       </div>
@@ -1538,6 +1554,7 @@ function viewMatters() {
     <div class="card table-wrap">
       <table class="grid">
         <thead><tr>
+          <th class="bulk-cell"><input class="bulk-check" type="checkbox" data-action="toggle-all-bulk-matters" ${allSelected ? 'checked' : ''} ${selectable.length ? '' : 'disabled'} aria-label="${esc(t('list.bulkDelete'))}"></th>
           <th>${esc(t('th.no'))}</th><th>${esc(t('th.client'))}</th><th>${esc(t('th.title'))}</th>
           <th>${esc(t('th.area'))}</th><th>${esc(t('th.owner'))}</th><th>${esc(t('th.status'))}</th>
           <th>${esc(t('th.next'))}</th><th>${esc(t('th.due'))}</th><th>${esc(t('th.waiting'))}</th><th>${esc(t('th.chat'))}</th>
@@ -1884,7 +1901,7 @@ function modalConfirm(mo) {
     `<div style="font-size:14px;color:var(--ink-2);line-height:1.75;white-space:pre-line">${esc(mo.body || '')}</div>`,
     `<button class="btn" type="button" data-action="close-modal">${esc(t('modal.cancel'))}</button>
      <button class="btn ${mo.danger ? 'btn-danger-solid' : 'btn-primary'}" type="button"
-       data-action="${mo.action}"${mo.id ? ` data-id="${mo.id}"` : ''}>${esc(t(mo.confirmKey))}</button>`
+       data-action="${mo.action}"${mo.id ? ` data-id="${mo.id}"` : ''}>${esc(mo.confirmText || t(mo.confirmKey))}</button>`
   );
 }
 
@@ -2318,6 +2335,7 @@ document.addEventListener('click', ev => {
       break;
     case 'confirm-logout':
       session = null;
+      state.bulkSelected.clear();
       save(KEY.session, null);
       state.modal = null;
       state.loginError = '';
@@ -2448,6 +2466,53 @@ document.addEventListener('click', ev => {
     }
     case 'print':
       window.print(); break;
+    case 'toggle-bulk-matter': {
+      const id = String(el.getAttribute('data-id'));
+      const m = matterById(id);
+      if (!m || (currentUser().id !== m.owner && !isAdmin())) break;
+      if (el.checked) state.bulkSelected.add(id); else state.bulkSelected.delete(id);
+      render();
+      break;
+    }
+    case 'toggle-all-bulk-matters': {
+      const selectable = sorted(filterMatters()).filter(m => currentUser().id === m.owner || isAdmin());
+      const selectAll = selectable.length > 0 && !selectable.every(m => state.bulkSelected.has(String(m.id)));
+      selectable.forEach(m => selectAll ? state.bulkSelected.add(String(m.id)) : state.bulkSelected.delete(String(m.id)));
+      render();
+      break;
+    }
+    case 'bulk-delete-matters': {
+      const ids = [...state.bulkSelected].filter(id => {
+        const m = matterById(id);
+        return m && !m.deletedAt && canSee(currentUser(), m) && (currentUser().id === m.owner || isAdmin());
+      });
+      if (!ids.length) break;
+      state.modal = {
+        type: 'confirm', titleKey: 'modal.bulkDelete.title', body: t('modal.bulkDelete.body', { n: ids.length }),
+        confirmText: t('modal.bulkDelete.confirm', { n: ids.length }), action: 'confirm-bulk-delete-matters', ids, danger: true,
+      };
+      render();
+      break;
+    }
+    case 'confirm-bulk-delete-matters': {
+      const ids = (state.modal && state.modal.ids || []).filter(id => {
+        const m = matterById(id);
+        return m && !m.deletedAt && canSee(currentUser(), m) && (currentUser().id === m.owner || isAdmin());
+      });
+      ids.forEach(id => {
+        const m = matterById(id);
+        m.deletedAt = Date.now();
+        addLogKey(id, currentUser().id, 'detail.entry.deleted', {}, {
+          key: 'inbox.deleted', vars: noticeVars(m, currentUser().id),
+        });
+        state.bulkSelected.delete(String(id));
+      });
+      if (ids.length) commit();
+      state.modal = null;
+      render();
+      if (ids.length) toast(t('toast.bulkDeleted', { n: ids.length }));
+      break;
+    }
     case 'delete-matter': {
       const id = el.getAttribute('data-id');
       const m = matterById(id);
@@ -2656,7 +2721,7 @@ document.addEventListener('submit', ev => {
       return;
     }
     state.loginError = '';
-    session = { userId: user.id }; save(KEY.session, session);
+    session = { userId: user.id }; state.bulkSelected.clear(); save(KEY.session, session);
     go('#/'); render();
     toast(t('toast.welcome', { name: user.name.split(' ')[0] }));
     return;
