@@ -150,7 +150,6 @@ const STR = {
   'inbox.systemRequesting': ['等待系统授权…', 'Waiting for permission…', 'Esperando autorización…'],
   'inbox.systemEnabled': ['系统通知已开启', 'System notifications enabled', 'Notificaciones del sistema activadas'],
   'inbox.systemDisable': ['关闭系统通知', 'Turn off system notifications', 'Desactivar notificaciones del sistema'],
-  'inbox.systemDenied': ['系统通知已被浏览器阻止', 'System notifications blocked', 'Notificaciones del sistema bloqueadas'],
   'inbox.systemUnsupported': ['此浏览器不支持系统通知', 'System notifications are not supported', 'Este navegador no admite notificaciones del sistema'],
   'system.title': ['LCB 新通知', 'New LCB notification', 'Nueva notificación de LCB'],
   'inbox.empty': ['还没有通知。', 'No notifications yet.', 'Todavía no hay notificaciones.'],
@@ -476,7 +475,7 @@ const STR = {
   'toast.markedRead': ['已标为已读', 'Marked as read', 'Marcado como leído'],
   'toast.systemEnabled': ['✅已开启系统通知', '✅ System notifications enabled', '✅ Notificaciones del sistema activadas'],
   'toast.systemDisabled': ['❎已关闭系统通知', '❎ System notifications turned off', '❎ Notificaciones del sistema desactivadas'],
-  'toast.systemDenied': ['浏览器没有允许系统通知，请在网站权限里开启', 'The browser did not allow notifications. Enable them in site permissions.', 'El navegador no permitió las notificaciones. Actívalas en los permisos del sitio.'],
+  'toast.systemDenied': ['系统通知已被浏览器阻止', 'System notifications have been blocked by the browser', 'El navegador ha bloqueado las notificaciones del sistema'],
   'toast.loggedOut': ['已退出登录', 'Signed out', 'Sesión cerrada'],
   'toast.switched': ['已切换到 {name}', 'Switched to {name}', 'Cambiado a {name}'],
   'toast.reset': ['已重置为演示数据', 'Demo data restored', 'Datos de demo restablecidos'],
@@ -1099,6 +1098,7 @@ function baselineSystemNotifications(user) {
 }
 function enableSystemNotifications() {
   if (typeof Notification === 'undefined') { toast(t('inbox.systemUnsupported')); return; }
+  if (Notification.permission === 'denied') { toast(t('toast.systemDenied')); return; }
   baselineSystemNotifications(currentUser());
   if (Notification.permission === 'granted') {
     systemNotice.enabled = true;
@@ -1487,13 +1487,13 @@ function viewInbox() {
   let systemControl;
   if (systemNotice.requesting) {
     systemControl = `<span class="system-notice-state requesting">${esc(t('inbox.systemRequesting'))}</span>`;
-  } else if (systemState === 'default' || systemState === 'disabled') {
+  } else if (systemState === 'default' || systemState === 'disabled' || systemState === 'denied') {
     systemControl = `<button class="btn" type="button" data-action="enable-system-notifications">${esc(t('inbox.systemEnable'))}</button>`;
   } else if (systemState === 'granted') {
     systemControl = `<span class="system-notice-controls"><span class="system-notice-state granted">${esc(t('inbox.systemEnabled'))}</span>
       <button class="btn" type="button" data-action="disable-system-notifications">${esc(t('inbox.systemDisable'))}</button></span>`;
   } else {
-    systemControl = `<span class="system-notice-state ${systemState}">${esc(t(systemState === 'denied' ? 'inbox.systemDenied' : 'inbox.systemUnsupported'))}</span>`;
+    systemControl = `<span class="system-notice-state ${systemState}">${esc(t('inbox.systemUnsupported'))}</span>`;
   }
   const rows = entries.length ? entries.map(l => {
     const read = (l.readBy || []).includes(u.id);
