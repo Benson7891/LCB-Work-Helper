@@ -2359,7 +2359,12 @@ document.addEventListener('click', ev => {
       break;
     }
     case 'mark-read':
-      if (markNotificationRead(el.getAttribute('data-id'), currentUser().id)) { render(); toast(t('toast.markedRead')); }
+      if (markNotificationRead(el.getAttribute('data-id'), currentUser().id)) {
+        render();
+        toast(t('toast.markedRead'));
+        // 已读回执要尽快到达发送者；不要依赖浏览器稍后执行的后台计时器。
+        pushRemote();
+      }
       break;
     case 'delete-notification':
       state.modal = {
