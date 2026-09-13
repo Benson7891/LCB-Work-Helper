@@ -391,7 +391,7 @@ const STR = {
   'modal.chat.placeholder': ['输入要发给事项成员的消息…', 'Type a message for the matter members…', 'Escribe un mensaje para los miembros del asunto…'],
   'modal.chat.send': ['发送消息', 'Send message', 'Enviar mensaje'],
   'modal.complete.title': ['完成当前步骤', 'Complete the current step', 'Completar el paso actual'],
-  'modal.complete.stage': ['现在这一步要做什么？', 'What needs to be done in this step?', '¿Qué hay que hacer en este paso?'],
+  'modal.complete.stage': ['下一步阶段', 'Next stage', 'Etapa siguiente'],
   'modal.complete.nextOwner': ['下一步负责人', 'Owner of the next step', 'Responsable del próximo paso'],
   'modal.complete.aboutTo': ['即将完成这一步', 'About to complete', 'A punto de completar'],
   'modal.complete.afterHint': ['填完了，这条事项就进入下一步。下面填的是<b>完成之后</b>的新状态。',
