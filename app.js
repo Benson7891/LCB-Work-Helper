@@ -1407,7 +1407,7 @@ function shell(route, content) {
       <nav class="nav">${navFor(route)}${langSwitcher('in-nav')}</nav>
       <div class="topbar-right">
         ${syncBadge()}
-        <div class="user-chip" aria-label="${esc(u.name)}">
+        <div class="user-chip" aria-label="${esc(u.name)}" style="pointer-events:none;cursor:default">
           <span class="avatar">${esc(u.short)}</span>
           <span>
             <span class="nm">${esc(u.name)}</span>
