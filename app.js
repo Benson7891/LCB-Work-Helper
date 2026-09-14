@@ -525,8 +525,9 @@ const STR = {
   'toast.needFileName': ['请填写文件名', 'Please enter a file name', 'Indica el nombre del archivo'],
   'toast.onlyOwnerDelete': ['只有项目负责人 {name} 才能删除事项', 'Only the matter owner, {name}, can delete it', 'Solo el responsable, {name}, puede eliminarlo'],
   'toast.onlyOwnerEdit': ['只有事项负责人 {name} 才能修改事项', 'Only the matter owner, {name}, can edit this matter', 'Solo el responsable, {name}, puede modificar este asunto'],
-  'toast.importStatusInvalid': ['事项“{title}”中“状态”填写错误，请点击对应的事项修改！', 'The “Status” in matter “{title}” is invalid. Open that matter to correct it.', 'El “Estado” del asunto «{title}» es incorrecto. Abra el asunto correspondiente para corregirlo.'],
-  'modal.importStatusInvalid.title': ['导入完成，但部分状态填写错误', 'Import complete, but some statuses are invalid', 'Importación completada, pero algunos estados son incorrectos'],
+  'toast.importStatusInvalid': ['事项“{title}”的“状态”填写错误，请修改！', 'The “Status” of matter “{title}” is invalid. Please correct it.', 'El “Estado” del asunto «{title}» es incorrecto. Corríjalo.'],
+  'modal.importStatusInvalid.title': ['导入完成，但部分内容填写错误', 'Import complete, but some entries are invalid', 'Importación completada, pero algunos datos son incorrectos'],
+  'modal.importFieldInvalid': ['事项“{title}”的“{field}”填写错误，请修改！', 'The “{field}” of matter “{title}” is invalid. Please correct it.', 'El campo “{field}” del asunto «{title}» es incorrecto. Corríjalo.'],
   'list.importError': ['错误的事项，请点击修改', 'Invalid matter. Click to edit', 'Asunto incorrecto. Haga clic para modificarlo'],
   'toast.onlyStepOwner': ['只有当前步骤负责人 {name} 才能完成这一步', 'Only the current step owner, {name}, can complete it', 'Solo el responsable del paso, {name}, puede completarlo'],
   'toast.adminRestore': ['仅事项负责人 {name} 可以恢复事项', 'Only matter owner {name} can restore it', 'Solo el responsable {name} puede restaurarlo'],
@@ -1973,12 +1974,15 @@ function modalNotice(mo) {
   );
 }
 
-function importStatusErrorModal(titles) {
-  if (!titles.length) return null;
+function importErrorModal(errors) {
+  if (!errors.length) return null;
   return {
     type: 'notice',
     titleKey: 'modal.importStatusInvalid.title',
-    body: titles.map(title => `<div>${esc(t('toast.importStatusInvalid', { title }))}</div>`).join(''),
+    body: errors.map(error => `<div>${esc(t('modal.importFieldInvalid', {
+      title: error.title,
+      field: t(error.fieldKey),
+    }))}</div>`).join(''),
   };
 }
 
@@ -2896,17 +2900,22 @@ document.addEventListener('submit', ev => {
         const validFormat = rows.length > 0 && requiredHeaders.every(name => headerAliases[name].some(alias => headersPresent.includes(alias.toLowerCase())));
         if (!validFormat) { state.modal = { type: 'import-invalid' }; render(); return; }
         let ok = 0, bad = 0;
-        const invalidStatuses = [];
+        const importErrors = [];
         rows.forEach(row => {
           const d = {};
           Object.keys(aliases).forEach(k => d[k] = String(val(row, aliases[k]) ?? '').trim());
+          const displayTitle = d.title || d.client || '—';
           const rawDue = String(val(row, aliases.due) ?? '').trim();
           d.due = normalizeImportedDate(rawDue);
           d.owner = USERS.find(u => u.name === d.owner || u.id === d.owner)?.id || currentUser().id;
           d.nextOwner = d.owner;
           const importedStatus = normalizeImportedStatus(val(row, aliases.status));
-          if (d.status && !importedStatus) invalidStatuses.push(d.title || d.client || '—');
-          d.importStatusError = !!(d.status && !importedStatus);
+          if (!d.client) importErrors.push({ title: displayTitle, fieldKey: 'detail.client' });
+          if (!d.title) importErrors.push({ title: displayTitle, fieldKey: 'detail.title' });
+          if (!d.next) importErrors.push({ title: displayTitle, fieldKey: 'detail.next' });
+          if (!d.due) importErrors.push({ title: displayTitle, fieldKey: 'detail.due' });
+          if (!importedStatus) importErrors.push({ title: displayTitle, fieldKey: 'detail.status' });
+          d.importStatusError = !importedStatus;
           d.status = importedStatus || 'green';
           d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none';
           const hasImportError = d.importStatusError || !d.client || !d.title || !d.next || !d.due;
@@ -2915,7 +2924,7 @@ document.addEventListener('submit', ev => {
           d.allowImportErrors = true;
           if (createMatter(d)) ok++; else bad++;
         });
-        state.modal = importStatusErrorModal(invalidStatuses);
+        state.modal = importErrorModal(importErrors);
         render();
         toast(t('modal.import.result', { ok, bad }));
       } catch (e) { state.modal = { type:'notice', titleKey:'modal.import.title', body: esc(String(e.message || e)) }; render(); }
