@@ -121,6 +121,12 @@ const STR = {
   'list.descMember': ['（只含你是项目成员的事项）', '(only matters you are assigned to)', '(solo asuntos en los que participas)'],
   'list.export': ['导出CSV表格', 'Export CSV spreadsheet', 'Exportar tabla CSV'],
   'list.bulkDelete': ['批量删除', 'Bulk delete', 'Eliminar en lote'],
+  'list.import': ['Excel/CSV导入', 'Import Excel/CSV', 'Importar Excel/CSV'],
+  'modal.import.title': ['Excel/CSV导入事项', 'Import matters from Excel/CSV', 'Importar asuntos desde Excel/CSV'],
+  'modal.import.hint': ['第一行必须是表头。支持：客户、事项名称、业务类型、当前阶段、状态、截止日期、等待谁、现在要做什么、负责人。', 'The first row must contain headers. Supported: client, matter name, practice area, stage, status, due date, waiting for, next step, owner.', 'La primera fila debe contener encabezados. Compatible con cliente, asunto, área, etapa, estado, fecha límite, espera, próximo paso y responsable.'],
+  'modal.import.choose': ['选择 .xlsx 或 .csv 文件', 'Choose an .xlsx or .csv file', 'Elige un archivo .xlsx o .csv'],
+  'modal.import.confirm': ['导入事项', 'Import matters', 'Importar asuntos'],
+  'modal.import.result': ['已导入 {ok} 条，跳过 {bad} 条', 'Imported {ok}; skipped {bad}', 'Importados {ok}; omitidos {bad}'],
   'modal.export.title': ['导出CSV表格', 'Export CSV spreadsheet', 'Exportar tabla CSV'],
   'modal.export.body': ['CSV 表格可用 Excel 打开。', 'CSV spreadsheets can be opened in Excel.', 'Las tablas CSV se pueden abrir con Excel.'],
   'modal.export.confirm': ['下载CSV表格', 'Download CSV', 'Descargar CSV'],
@@ -1464,6 +1470,7 @@ function viewDashboard() {
         <div class="desc">${esc(t('dash.desc'))}</div>
       </div>
       <div class="right">
+        <button class="btn" type="button" data-action="import-matters">${esc(t('list.import'))}</button>
         <button class="btn btn-primary" type="button" data-action="new-matter">${esc(t('dash.new'))}</button>
       </div>
     </div>
@@ -2023,7 +2030,12 @@ function renderModal() {
   if (mo.type === 'complete-step') return modalCompleteStep(mo);
   if (mo.type === 'confirm') return modalConfirm(mo);
   if (mo.type === 'notice') return modalNotice(mo);
+  if (mo.type === 'import') return modalImport();
   return '';
+}
+
+function modalImport() {
+  return modalFrame(t('modal.import.title'), `<div class="hint" style="margin-bottom:14px">${esc(t('modal.import.hint'))}</div><form id="import-form" data-action="import-file"><div class="field"><label class="req">${esc(t('modal.import.choose'))}</label><input type="file" name="importFile" accept=".csv,.xlsx,.xls" required></div></form>`, `<button class="btn" type="button" data-action="close-modal">${esc(t('modal.cancel'))}</button><button class="btn btn-primary" type="submit" form="import-form">${esc(t('modal.import.confirm'))}</button>`);
 }
 
 function modalNewMatter() {
@@ -2788,6 +2800,31 @@ document.addEventListener('submit', ev => {
     go('#/'); render();
     toast(t('toast.welcome', { name: user.name.split(' ')[0] }));
     return;
+  }
+  if (action === 'import-file') {
+    const file = form.importFile && form.importFile.files && form.importFile.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        let rows;
+        if (/\.xlsx?$/i.test(file.name)) {
+          if (!globalThis.XLSX) throw new Error('Excel parser unavailable');
+          const wb = XLSX.read(reader.result, { type: 'array' });
+          rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+        } else {
+          const lines = String(reader.result).split(/\r?\n/).filter(Boolean);
+          const parse = line => line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map(x => x.replace(/^\"|\"$/g, '').replace(/\"\"/g, '\"').trim());
+          const heads = parse(lines.shift()); rows = lines.map(line => Object.fromEntries(parse(line).map((v, i) => [heads[i], v])));
+        }
+        const aliases = { client:['客户','client'], title:['事项名称','事项','matter name','title'], area:['业务类型','practice area','area'], stage:['当前阶段','stage'], status:['状态','status'], due:['截止日期','截止','due date','due'], waiting:['等待谁','waiting for','waiting'], next:['现在要做什么','当前步骤','下一步','next step','next'], owner:['负责人','owner'] };
+        const val = (row, keys) => { const key = Object.keys(row).find(k => keys.some(a => k.trim().toLowerCase() === a.toLowerCase())); return key ? String(row[key] || '').trim() : ''; };
+        let ok = 0, bad = 0;
+        rows.forEach(row => { const d = {}; Object.keys(aliases).forEach(k => d[k] = val(row, aliases[k])); d.owner = USERS.find(u => u.name === d.owner || u.id === d.owner)?.id || currentUser().id; d.nextOwner = d.owner; d.status = ['red','yellow','green'].includes(d.status) ? d.status : 'green'; d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none'; if (d.client && d.title && d.next && d.due && createMatter(d)) ok++; else bad++; });
+        state.modal = null; render(); toast(t('modal.import.result', { ok, bad }));
+      } catch (e) { state.modal = { type:'notice', titleKey:'modal.import.title', body: esc(String(e.message || e)) }; render(); }
+    };
+    if (/\.xlsx?$/i.test(file.name)) reader.readAsArrayBuffer(file); else reader.readAsText(file);
   }
   if (action === 'create-matter') {
     const data = readForm(form);
