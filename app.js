@@ -127,6 +127,10 @@ const STR = {
   'modal.import.choose': ['选择 .xlsx 或 .csv 文件', 'Choose an .xlsx or .csv file', 'Elige un archivo .xlsx o .csv'],
   'modal.import.confirm': ['导入事项', 'Import matters', 'Importar asuntos'],
   'modal.import.result': ['已导入 {ok} 条，跳过 {bad} 条', 'Imported {ok}; skipped {bad}', 'Importados {ok}; omitidos {bad}'],
+  'modal.import.invalid': ['格式不对，是否查看示例文件？', 'The format is incorrect. Would you like to view a sample file?', 'El formato no es correcto. ¿Quieres ver un archivo de ejemplo?'],
+  'modal.import.yes': ['是', 'Yes', 'Sí'],
+  'modal.import.no': ['否', 'No', 'No'],
+  'modal.import.sample': ['示例文件', 'Sample file', 'Archivo de ejemplo'],
   'modal.export.title': ['导出CSV表格', 'Export CSV spreadsheet', 'Exportar tabla CSV'],
   'modal.export.body': ['CSV 表格可用 Excel 打开。', 'CSV spreadsheets can be opened in Excel.', 'Las tablas CSV se pueden abrir con Excel.'],
   'modal.export.confirm': ['下载CSV表格', 'Download CSV', 'Descargar CSV'],
@@ -2031,11 +2035,16 @@ function renderModal() {
   if (mo.type === 'confirm') return modalConfirm(mo);
   if (mo.type === 'notice') return modalNotice(mo);
   if (mo.type === 'import') return modalImport();
+  if (mo.type === 'import-invalid') return modalImportInvalid();
   return '';
 }
 
 function modalImport() {
   return modalFrame(t('modal.import.title'), `<div class="hint" style="margin-bottom:14px">${esc(t('modal.import.hint'))}</div><form id="import-form" data-action="import-file"><div class="field"><label class="req">${esc(t('modal.import.choose'))}</label><input type="file" name="importFile" accept=".csv,.xlsx,.xls" required></div></form>`, `<button class="btn" type="button" data-action="close-modal">${esc(t('modal.cancel'))}</button><button class="btn btn-primary" type="submit" form="import-form">${esc(t('modal.import.confirm'))}</button>`);
+}
+
+function modalImportInvalid() {
+  return modalFrame(t('modal.import.title'), `<div style="font-size:14.5px;color:var(--ink-2);line-height:1.75">${esc(t('modal.import.invalid'))}</div>`, `<button class="btn" type="button" data-action="close-modal">${esc(t('modal.import.no'))}</button><button class="btn btn-primary" type="button" data-action="download-import-sample">${esc(t('modal.import.yes'))}</button>`);
 }
 
 function modalNewMatter() {
@@ -2494,6 +2503,14 @@ document.addEventListener('click', ev => {
     }
     case 'print':
       window.print(); break;
+    case 'download-import-sample': {
+      const heads = ['客户','事项名称','业务类型','当前阶段','状态','截止日期','等待谁','现在要做什么','负责人'];
+      const csv = '\ufeff' + heads.map(x => `"${x}"`).join(',') + '\n';
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '事项导入示例.csv'; a.click(); URL.revokeObjectURL(a.href);
+      state.modal = null; render();
+      break;
+    }
     case 'toggle-bulk-matter': {
       const id = String(el.getAttribute('data-id'));
       const m = matterById(id);
@@ -2819,6 +2836,11 @@ document.addEventListener('submit', ev => {
         }
         const aliases = { client:['客户','client'], title:['事项名称','事项','matter name','title'], area:['业务类型','practice area','area'], stage:['当前阶段','stage'], status:['状态','status'], due:['截止日期','截止','due date','due'], waiting:['等待谁','waiting for','waiting'], next:['现在要做什么','当前步骤','下一步','next step','next'], owner:['负责人','owner'] };
         const val = (row, keys) => { const key = Object.keys(row).find(k => keys.some(a => k.trim().toLowerCase() === a.toLowerCase())); return key ? String(row[key] || '').trim() : ''; };
+        const requiredHeaders = ['client','title','next','due'];
+        const headersPresent = Object.keys(rows[0] || {}).map(k => k.trim().toLowerCase());
+        const headerAliases = { client:['客户','client'], title:['事项名称','事项','matter name','title'], next:['现在要做什么','当前步骤','下一步','next step','next'], due:['截止日期','截止','due date','due'] };
+        const validFormat = rows.length > 0 && requiredHeaders.every(name => headerAliases[name].some(alias => headersPresent.includes(alias.toLowerCase())));
+        if (!validFormat) { state.modal = { type: 'import-invalid' }; render(); return; }
         let ok = 0, bad = 0;
         rows.forEach(row => { const d = {}; Object.keys(aliases).forEach(k => d[k] = val(row, aliases[k])); d.owner = USERS.find(u => u.name === d.owner || u.id === d.owner)?.id || currentUser().id; d.nextOwner = d.owner; d.status = ['red','yellow','green'].includes(d.status) ? d.status : 'green'; d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none'; if (d.client && d.title && d.next && d.due && createMatter(d)) ok++; else bad++; });
         state.modal = null; render(); toast(t('modal.import.result', { ok, bad }));
