@@ -67,7 +67,7 @@ const STR = {
   'login.errBadPass': ['密码不对，请重新输入。', 'Wrong password, please try again.', 'Contraseña incorrecta, inténtalo de nuevo.'],
   'toast.welcome': ['欢迎回来，{name}', 'Welcome back, {name}', 'Bienvenido de nuevo, {name}'],
 
-  'nav.dashboard': ['工作台', 'Dashboard', 'Panel'],
+  'nav.dashboard': ['首页', 'Home', 'Inicio'],
   'nav.matters': ['事项', 'Matters', 'Asuntos'],
   'nav.weekly': ['每周视图', 'Weekly', 'Semanal'],
   'nav.inbox': ['通知', 'Notifications', 'Notificaciones'],
@@ -1474,7 +1474,6 @@ function viewDashboard() {
         <div class="desc">${esc(t('dash.desc'))}</div>
       </div>
       <div class="right">
-        <button class="btn" type="button" data-action="import-matters">${esc(t('list.import'))}</button>
         <button class="btn btn-primary" type="button" data-action="new-matter">${esc(t('dash.new'))}</button>
       </div>
     </div>
@@ -1558,6 +1557,7 @@ function viewMatters() {
         <div class="desc">${esc(t('list.desc', { n }))}${esc(t(currentUser().admin ? 'list.descAdmin' : 'list.descMember'))}</div>
       </div>
       <div class="right">
+        <button class="btn" type="button" data-action="import-matters">${esc(t('list.import'))}</button>
         <button class="btn btn-danger" type="button" data-action="bulk-delete-matters" ${bulkCount ? '' : 'disabled'}>${esc(t('list.bulkDelete'))}${bulkCount ? ` (${bulkCount})` : ''}</button>
         <button class="btn" type="button" data-action="export-csv">${esc(t('list.export'))}</button>
         <button class="btn btn-primary" type="button" data-action="new-matter">${esc(t('dash.new'))}</button>
