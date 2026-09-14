@@ -12,6 +12,7 @@ const KEY = {
   matters: 'lcb_matters_v1',
   logs: 'lcb_logs_v1',
   session: 'lcb_session_v1',
+  auth: 'lcb_auth_v2',
   seq: 'lcb_seq_v1',
   lang: 'lcb_lang_v1',
   systemSeen: 'lcb_system_notice_seen_v1',
@@ -622,9 +623,9 @@ const AREA = Object.fromEntries(PRACTICE_AREAS.map(a => [a.id, a]));
 function areaName(id) { return AREA[id] ? L(AREA[id].name) : (id || ''); }
 
 const USERS = [
-  { id: 'carol', name: 'Carol', short: 'C', email: '13726111370@163.com', password: '[REDACTED]', roleKey: 'role.carol', admin: true },
-  { id: 'carlos', name: 'Carlos Dávila', short: 'CD', email: 'cdavila@lcbabogados.com', password: '[REDACTED]', roleKey: 'role.carlos', admin: false },
-  { id: 'hector', name: 'Héctor Luján Medina', short: 'HL', email: 'hlujan@lcbabogados.com', password: '[REDACTED]', roleKey: 'role.hector', admin: false },
+  { id: 'carol', name: 'Carol', short: 'C', email: '13726111370@163.com', roleKey: 'role.carol', admin: true },
+  { id: 'carlos', name: 'Carlos Dávila', short: 'CD', email: 'cdavila@lcbabogados.com', roleKey: 'role.carlos', admin: false },
+  { id: 'hector', name: 'Héctor Luján Medina', short: 'HL', email: 'hlujan@lcbabogados.com', roleKey: 'role.hector', admin: false },
 ];
 const USER = Object.fromEntries(USERS.map(u => [u.id, u]));
 
@@ -889,10 +890,13 @@ function seedLogs() {
 
 /* ------------------------------ 运行时状态 ------------------------------ */
 
-let matters = load(KEY.matters, null) || [];
-let logs = load(KEY.logs, null) || [];
-let seq = load(KEY.seq, 0);
-let session = load(KEY.session, null);   // { userId }
+let authSession = load(KEY.auth, null);
+let matters = REMOTE_ENABLED ? [] : (load(KEY.matters, null) || []);
+let logs = REMOTE_ENABLED ? [] : (load(KEY.logs, null) || []);
+let seq = REMOTE_ENABLED ? 0 : load(KEY.seq, 0);
+let session = authSession && authSession.email
+  ? (() => { const u = USERS.find(x => x.email.toLowerCase() === String(authSession.email).toLowerCase()); return u ? { userId: u.id } : null; })()
+  : (!REMOTE_ENABLED ? load(KEY.session, null) : null);
 const state = {
   filters: { q: '', area: '', owner: '', status: '', waiting: '' },
   bulkSelected: new Set(),
@@ -913,21 +917,60 @@ if (!Array.isArray(savedSystemSeen)) {
 }
 
 function commit() {
-  save(KEY.matters, matters);
-  save(KEY.logs, logs);
-  save(KEY.seq, seq);
+  if (!REMOTE_ENABLED) {
+    save(KEY.matters, matters);
+    save(KEY.logs, logs);
+    save(KEY.seq, seq);
+  }
   schedulePush();
 }
 
 /* ------------------------------ 与服务器同步 ------------------------------ */
 
 function sbFetch(path, opts) {
+  const token = authSession && authSession.access_token;
   const headers = Object.assign({
     apikey: SUPABASE.key,
-    Authorization: 'Bearer ' + SUPABASE.key,
+    Authorization: 'Bearer ' + (token || SUPABASE.key),
     'Content-Type': 'application/json',
   }, (opts && opts.headers) || {});
   return fetch(SUPABASE.url + '/rest/v1' + path, Object.assign({}, opts || {}, { headers }));
+}
+
+async function signIn(email, password) {
+  const res = await fetch(SUPABASE.url + '/auth/v1/token?grant_type=password', {
+    method: 'POST', headers: { apikey: SUPABASE.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error('bad-credentials');
+  const data = await res.json();
+  authSession = { access_token: data.access_token, refresh_token: data.refresh_token,
+    expires_at: Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600),
+    email: data.user && data.user.email };
+  save(KEY.auth, authSession);
+}
+
+async function refreshAuth() {
+  if (!authSession || !authSession.refresh_token) return false;
+  if (authSession.expires_at > Math.floor(Date.now() / 1000) + 60) return true;
+  const res = await fetch(SUPABASE.url + '/auth/v1/token?grant_type=refresh_token', {
+    method: 'POST', headers: { apikey: SUPABASE.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: authSession.refresh_token }),
+  });
+  if (!res.ok) return false;
+  const data = await res.json();
+  authSession = { access_token: data.access_token, refresh_token: data.refresh_token,
+    expires_at: Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600),
+    email: data.user && data.user.email };
+  save(KEY.auth, authSession);
+  return true;
+}
+
+function clearPrivateCache() {
+  [KEY.matters, KEY.logs, KEY.seq, KEY.session].forEach(k => {
+    try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
+  });
+  matters = []; logs = []; seq = 0;
 }
 
 const UPSERT = { Prefer: 'resolution=merge-duplicates,return=minimal' };
@@ -971,7 +1014,7 @@ function userIsInteracting() {
 async function pullRemote(opts) {
   const background = !!(opts && opts.background);
   if (background && userIsInteracting()) return;
-  if (!REMOTE_ENABLED || sync.busy) return;
+  if (!REMOTE_ENABLED || sync.busy || !authSession) return;
   if (sync.dirty) return;              // 本地还有没推上去的改动，先别覆盖
   sync.busy = true;
   try {
@@ -999,9 +1042,11 @@ async function pullRemote(opts) {
     logs = nextLogs;
     seq = nextSeq;
     sync.syncedLogs = new Set(logs.map(l => l.id));
-    save(KEY.matters, matters);
-    save(KEY.logs, logs);
-    save(KEY.seq, seq);
+    if (!REMOTE_ENABLED) {
+      save(KEY.matters, matters);
+      save(KEY.logs, logs);
+      save(KEY.seq, seq);
+    }
     sync.status = 'ok';
     resetSyncRetries();
     sync.lastAt = Date.now();
@@ -1022,7 +1067,7 @@ async function pullRemote(opts) {
 }
 
 async function pushRemote() {
-  if (!REMOTE_ENABLED) return;
+  if (!REMOTE_ENABLED || !authSession) return;
   if (sync.busy) return;
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
   sync.busy = true;
@@ -1132,7 +1177,7 @@ function canUndoStep(user, m) {
 }
 function addLog(matterId, by, text) {
   logs.push({ id: 'l' + Math.random().toString(36).slice(2, 9), matterId, at: Date.now(), by, text });
-  save(KEY.logs, logs);
+  if (!REMOTE_ENABLED) save(KEY.logs, logs);
 }
 function noticeRecipients(m, actor, explicit) {
   const ids = explicit || [...(m && m.team || []), m && m.owner];
@@ -1155,7 +1200,7 @@ function addLogKey(matterId, by, key, vars, notice) {
     entry.matterNo = m ? m.no : notice.no || '';
   }
   logs.push(entry);
-  save(KEY.logs, logs);
+  if (!REMOTE_ENABLED) save(KEY.logs, logs);
   return entry;
 }
 function resolveVar(v) {
@@ -2425,6 +2470,9 @@ document.addEventListener('click', ev => {
       break;
     case 'confirm-logout':
       session = null;
+      authSession = null;
+      save(KEY.auth, null);
+      clearPrivateCache();
       state.bulkSelected.clear();
       state.trashSelected.clear();
       save(KEY.session, null);
@@ -2856,7 +2904,7 @@ document.addEventListener('input', ev => {
   }
 });
 
-document.addEventListener('submit', ev => {
+document.addEventListener('submit', async ev => {
   const form = ev.target.closest('form[data-action]');
   if (!form) return;
   ev.preventDefault();
@@ -2865,14 +2913,17 @@ document.addEventListener('submit', ev => {
     const email = (form.email.value || '').trim().toLowerCase();
     const pass = form.password.value || '';
     const user = USERS.find(u => u.email.toLowerCase() === email);
-    if (!user || pass !== user.password) {
-      state.loginError = !user ? t('login.errNoUser') : t('login.errBadPass');
+    if (!user) {
+      state.loginError = t('login.errNoUser');
       render();
       return;
     }
+    try { await signIn(email, pass); }
+    catch (e) { state.loginError = t('login.errBadPass'); render(); return; }
     state.loginError = '';
-    session = { userId: user.id }; state.bulkSelected.clear(); state.trashSelected.clear(); save(KEY.session, session);
+    session = { userId: user.id }; state.bulkSelected.clear(); state.trashSelected.clear();
     go('#/'); render();
+    await pullRemote({ initial: true });
     toast(t('toast.welcome', { name: user.name.split(' ')[0] }));
     return;
   }
@@ -2985,7 +3036,7 @@ document.addEventListener('keydown', ev => {
 /* ------------------------------ 启动 ------------------------------ */
 
 // 本地还没有缓存时，从空列表开始；联网后会拉取团队数据。
-if (!load(KEY.matters, null)) {
+if (!REMOTE_ENABLED && !load(KEY.matters, null)) {
   save(KEY.matters, matters);
   save(KEY.logs, logs);
   save(KEY.seq, seq);
@@ -2993,7 +3044,11 @@ if (!load(KEY.matters, null)) {
 render();
 
 if (REMOTE_ENABLED) {
-  pullRemote({ initial: true });
+  clearPrivateCache();
+  refreshAuth().then(ok => {
+    if (ok) pullRemote({ initial: true });
+    else { authSession = null; session = null; save(KEY.auth, null); render(); }
+  });
   setInterval(() => {
     if (!sync.dirty && sync.status !== 'error') pullRemote({ background: true });
   }, SYNC_EVERY_MS);
