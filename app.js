@@ -2276,8 +2276,8 @@ function undoStep(id) {
 }
 
 function createMatter(data) {
-  if (!data.client || !data.title || !data.next || !data.due) { toast(t('toast.needClient')); return false; }
-  if ((data.status === 'red' || data.status === 'yellow') && !String(data.reason || '').trim()) { toast(t('toast.needReason')); return false; }
+  if (!data.allowImportErrors && (!data.client || !data.title || !data.next || !data.due)) { toast(t('toast.needClient')); return false; }
+  if (!data.allowImportErrors && (data.status === 'red' || data.status === 'yellow') && !String(data.reason || '').trim()) { toast(t('toast.needReason')); return false; }
   const stage = resolveCustom(data.stage, data.stageCustom);
   const waiting = resolveCustom(data.waiting, data.waitingCustom);
   const area = resolveCustom(data.area, data.areaCustom);
@@ -2900,7 +2900,8 @@ document.addEventListener('submit', ev => {
         rows.forEach(row => {
           const d = {};
           Object.keys(aliases).forEach(k => d[k] = String(val(row, aliases[k]) ?? '').trim());
-          d.due = normalizeImportedDate(val(row, aliases.due));
+          const rawDue = String(val(row, aliases.due) ?? '').trim();
+          d.due = normalizeImportedDate(rawDue);
           d.owner = USERS.find(u => u.name === d.owner || u.id === d.owner)?.id || currentUser().id;
           d.nextOwner = d.owner;
           const importedStatus = normalizeImportedStatus(val(row, aliases.status));
@@ -2908,7 +2909,11 @@ document.addEventListener('submit', ev => {
           d.importStatusError = !!(d.status && !importedStatus);
           d.status = importedStatus || 'green';
           d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none';
-          if (d.client && d.title && d.next && d.due && createMatter(d)) ok++; else bad++;
+          const hasImportError = d.importStatusError || !d.client || !d.title || !d.next || !d.due;
+          d.importStatusError = hasImportError;
+          d.client = d.client || '—'; d.title = d.title || '—'; d.next = d.next || '—'; d.due = d.due || rawDue || '—';
+          d.allowImportErrors = true;
+          if (createMatter(d)) ok++; else bad++;
         });
         state.modal = importStatusErrorModal(invalidStatuses);
         render();
