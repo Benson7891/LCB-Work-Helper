@@ -2503,6 +2503,10 @@ document.addEventListener('click', ev => {
     }
     case 'print':
       window.print(); break;
+    case 'import-matters':
+      state.modal = { type: 'import' };
+      render();
+      break;
     case 'download-import-sample': {
       const heads = ['客户','事项名称','业务类型','当前阶段','状态','截止日期','等待谁','现在要做什么','负责人'];
       const csv = '\ufeff' + heads.map(x => `"${x}"`).join(',') + '\n';
