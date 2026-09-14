@@ -134,7 +134,7 @@ const STR = {
   'modal.export.title': ['导出CSV表格', 'Export CSV spreadsheet', 'Exportar tabla CSV'],
   'modal.export.body': ['CSV 表格可用 Excel 打开。', 'CSV spreadsheets can be opened in Excel.', 'Las tablas CSV se pueden abrir con Excel.'],
   'modal.export.confirm': ['下载CSV表格', 'Download CSV', 'Descargar CSV'],
-  'list.search': ['搜索客户、事项、下一步…', 'Search client, matter, next step…', 'Buscar cliente, asunto, próximo paso…'],
+  'list.search': ['搜索客户、事项、这一步', 'Search client, matter, current step', 'Buscar cliente, asunto, paso actual'],
   'list.allAreas': ['全部业务类型', 'All practice areas', 'Todas las áreas'],
   'list.allOwners': ['全部负责人', 'All owners', 'Todos los responsables'],
   'list.allStatus': ['全部状态', 'All statuses', 'Todos los estados'],
