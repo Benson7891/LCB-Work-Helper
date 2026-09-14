@@ -17,6 +17,7 @@ const KEY = {
   lang: 'lcb_lang_v1',
   systemSeen: 'lcb_system_notice_seen_v1',
   systemEnabled: 'lcb_system_notice_enabled_v1',
+  securityNoticeUntil: 'lcb_security_notice_until_v1',
 };
 
 /* ------------------------------ 共享数据（Supabase） ------------------------------
@@ -48,6 +49,51 @@ const LANGS = [
   { id: 'es', label: 'ES', name: 'Español' },
 ];
 const LANG_INDEX = { zh: 0, en: 1, es: 2 };
+
+const SECURITY_NOTICE = {
+  zh: {
+    title: '新版事务管理器安全性比旧版高在哪？',
+    intro: '新版主要安全在这几处：',
+    hide: '7 天内不再显示', close: '我知道了',
+    items: [
+      ['密码不再写在网页源码里', '别人查看 GitHub 代码，也看不到三人的密码。', '把网站源码扒个底朝天也找不到账号密码。'],
+      ['改为 Supabase 真登录', '账号密码由服务器验证，不是浏览器自己判断。', '身份验证交给专业托管平台，安全性提高。'],
+      ['关闭匿名数据库访问', '未登录请求现在直接返回 401（未授权），不能读取、修改或删除事项。', '想绕过登录动网站，没门。'],
+      ['数据库执行成员权限', 'Carlos、Héctor 只能读取自己参与的事项；Carol 可查看全部。', 'Carol 是管理员，爱咋搞就咋搞。'],
+      ['浏览器不再长期缓存案件正文', '退出后会清除旧缓存，减少共用电脑泄露风险。', '退出后敏感案件信息不会继续留在浏览器缓存里。'],
+      ['增加网页安全策略', '限制网页只能连接指定数据库和脚本来源，降低恶意脚本注入风险。', '假数据库和来路不明的脚本别想混进来。'],
+      ['账号保持不变', '网址、邮箱、密码都没有改变。', '对你使用没有影响。'],
+    ],
+  },
+  en: {
+    title: 'How is the new task manager more secure?',
+    intro: 'The main security improvements are:',
+    hide: 'Do not show again for 7 days', close: 'Got it',
+    items: [
+      ['Passwords are no longer stored in the source code', 'Viewing the GitHub code no longer reveals any team password.', 'Tear the source code apart: the passwords are not there.'],
+      ['Real Supabase authentication', 'Passwords are verified by the server, not by the browser.', 'A professional authentication service now checks identity.'],
+      ['Anonymous database access is disabled', 'Requests without a login receive 401 Unauthorized and cannot read, edit or delete matters.', 'Trying to bypass the login page gets you nowhere.'],
+      ['Permissions are enforced by the database', 'Carlos and Héctor only see matters they belong to; Carol can see all matters.', 'Carol is the administrator and has full control.'],
+      ['Matter text is no longer kept in long-term browser cache', 'Signing out clears old cached data, reducing exposure on shared computers.', 'Sensitive matter information does not stay behind after logout.'],
+      ['Stricter browser security rules', 'The site may connect only to approved databases and script sources.', 'Impostor databases and untrusted scripts are blocked.'],
+      ['Accounts remain unchanged', 'The URL, emails and passwords have not changed.', 'You use it exactly as before.'],
+    ],
+  },
+  es: {
+    title: '¿Por qué es más seguro el nuevo gestor?',
+    intro: 'Las principales mejoras de seguridad son:',
+    hide: 'No mostrar durante 7 días', close: 'Entendido',
+    items: [
+      ['Las contraseñas ya no están en el código fuente', 'Revisar el código de GitHub ya no revela ninguna contraseña del equipo.', 'Por mucho que revisen el código, las contraseñas no están allí.'],
+      ['Autenticación real con Supabase', 'El servidor verifica las contraseñas, no el navegador.', 'La identidad la comprueba un servicio profesional.'],
+      ['Acceso anónimo desactivado', 'Sin iniciar sesión, las solicitudes reciben 401 No autorizado y no pueden leer, modificar ni eliminar asuntos.', 'No se puede saltar el inicio de sesión.'],
+      ['Permisos aplicados por la base de datos', 'Carlos y Héctor solo ven sus asuntos; Carol puede verlos todos.', 'Carol es la administradora y tiene control total.'],
+      ['Los asuntos no quedan guardados en la caché a largo plazo', 'Al cerrar sesión se borran los datos antiguos del navegador.', 'La información sensible no queda en un ordenador compartido.'],
+      ['Reglas de seguridad más estrictas', 'El sitio solo puede conectarse a bases de datos y scripts aprobados.', 'Se bloquean bases de datos falsas y scripts no confiables.'],
+      ['Las cuentas no cambian', 'La dirección, los correos y las contraseñas siguen iguales.', 'Se utiliza exactamente como antes.'],
+    ],
+  },
+};
 
 /* 每条： [简体中文, English, Español] */
 const STR = {
@@ -902,7 +948,7 @@ const state = {
   bulkSelected: new Set(),
   trashSelected: new Set(),
   loginError: '',
-  modal: null,
+  modal: Number(load(KEY.securityNoticeUntil, 0)) > Date.now() ? null : { type: 'security-notice' },
 };
 const savedSystemSeen = load(KEY.systemSeen, null);
 const systemNotice = {
@@ -2019,6 +2065,23 @@ function modalNotice(mo) {
   );
 }
 
+function modalSecurityNotice() {
+  const copy = SECURITY_NOTICE[lang] || SECURITY_NOTICE.zh;
+  const items = copy.items.map(item => `
+    <li>
+      <div class="security-notice-title">${esc(item[0])}</div>
+      <div>${esc(item[1])}</div>
+      <div class="security-notice-plain">${esc(item[2])}</div>
+    </li>`).join('');
+  return modalFrame(
+    copy.title,
+    `<div class="security-notice-intro">${esc(copy.intro)}</div>
+     <ul class="security-notice-list">${items}</ul>
+     <label class="security-notice-hide"><input type="checkbox" id="security-notice-hide"> ${esc(copy.hide)}</label>`,
+    `<button class="btn btn-primary" type="button" data-action="close-security-notice">${esc(copy.close)}</button>`
+  );
+}
+
 function importErrorModal(errors) {
   if (!errors.length) return null;
   return {
@@ -2126,6 +2189,7 @@ function renderModal() {
   if (mo.type === 'complete-step') return modalCompleteStep(mo);
   if (mo.type === 'confirm') return modalConfirm(mo);
   if (mo.type === 'notice') return modalNotice(mo);
+  if (mo.type === 'security-notice') return modalSecurityNotice();
   if (mo.type === 'import') return modalImport();
   if (mo.type === 'import-invalid') return modalImportInvalid();
   return '';
@@ -2496,6 +2560,13 @@ document.addEventListener('click', ev => {
       state.modal = { type: 'new-matter' }; render(); break;
     case 'close-modal':
       state.modal = null; render(); break;
+    case 'close-security-notice': {
+      const hide = document.getElementById('security-notice-hide');
+      if (hide && hide.checked) save(KEY.securityNoticeUntil, Date.now() + 7 * 86400000);
+      state.modal = null;
+      render();
+      break;
+    }
     case 'open-matter':
       go(`#/matters/${el.getAttribute('data-id')}`); break;
     case 'chat-matter': {
