@@ -722,6 +722,19 @@ function dueText(s) {
   if (n === 1) return t('fmt.tomorrow');
   return t('fmt.inDays', { n });
 }
+function normalizeImportedDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return iso(value);
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    const serial = Number(raw);
+    if (serial > 20000 && serial < 80000) return iso(new Date(Date.UTC(1899, 11, 30) + serial * 86400000));
+  }
+  const m = raw.match(/^(\d{4})\s*[年\/-](\d{1,2})\s*[月\/-](\d{1,2})日?$/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+  const d = new Date(raw.replace(/[年\/]/g, '-').replace(/月/g, '-').replace(/日/g, ''));
+  return Number.isNaN(d.getTime()) ? '' : iso(d);
+}
 function isThisWeek(s) {
   const n = daysFromToday(s);
   return n !== null && n >= 0 && n <= 7;
@@ -2839,14 +2852,14 @@ document.addEventListener('submit', ev => {
           const heads = parse(lines.shift()); rows = lines.map(line => Object.fromEntries(parse(line).map((v, i) => [heads[i], v])));
         }
         const aliases = { client:['客户','client'], title:['事项名称','事项','matter name','title'], area:['业务类型','practice area','area'], stage:['当前阶段','stage'], status:['状态','status'], due:['截止日期','截止','due date','due'], waiting:['等待谁','waiting for','waiting'], next:['现在要做什么','当前步骤','下一步','next step','next'], owner:['负责人','owner'] };
-        const val = (row, keys) => { const key = Object.keys(row).find(k => keys.some(a => k.trim().toLowerCase() === a.toLowerCase())); return key ? String(row[key] || '').trim() : ''; };
+        const val = (row, keys) => { const key = Object.keys(row).find(k => keys.some(a => k.trim().toLowerCase() === a.toLowerCase())); return key ? row[key] : ''; };
         const requiredHeaders = ['client','title','next','due'];
         const headersPresent = Object.keys(rows[0] || {}).map(k => k.trim().toLowerCase());
         const headerAliases = { client:['客户','client'], title:['事项名称','事项','matter name','title'], next:['现在要做什么','当前步骤','下一步','next step','next'], due:['截止日期','截止','due date','due'] };
         const validFormat = rows.length > 0 && requiredHeaders.every(name => headerAliases[name].some(alias => headersPresent.includes(alias.toLowerCase())));
         if (!validFormat) { state.modal = { type: 'import-invalid' }; render(); return; }
         let ok = 0, bad = 0;
-        rows.forEach(row => { const d = {}; Object.keys(aliases).forEach(k => d[k] = val(row, aliases[k])); d.owner = USERS.find(u => u.name === d.owner || u.id === d.owner)?.id || currentUser().id; d.nextOwner = d.owner; d.status = ['red','yellow','green'].includes(d.status) ? d.status : 'green'; d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none'; if (d.client && d.title && d.next && d.due && createMatter(d)) ok++; else bad++; });
+        rows.forEach(row => { const d = {}; Object.keys(aliases).forEach(k => d[k] = String(val(row, aliases[k]) ?? '').trim()); d.due = normalizeImportedDate(val(row, aliases.due)); d.owner = USERS.find(u => u.name === d.owner || u.id === d.owner)?.id || currentUser().id; d.nextOwner = d.owner; d.status = ['red','yellow','green'].includes(d.status) ? d.status : 'green'; d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none'; if (d.client && d.title && d.next && d.due && createMatter(d)) ok++; else bad++; });
         state.modal = null; render(); toast(t('modal.import.result', { ok, bad }));
       } catch (e) { state.modal = { type:'notice', titleKey:'modal.import.title', body: esc(String(e.message || e)) }; render(); }
     };
