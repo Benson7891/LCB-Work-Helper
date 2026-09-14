@@ -524,6 +524,8 @@ const STR = {
   'toast.needStatus': ['请选择状态', 'Please choose a status', 'Elige un estado'],
   'toast.needFileName': ['请填写文件名', 'Please enter a file name', 'Indica el nombre del archivo'],
   'toast.onlyOwnerDelete': ['只有项目负责人 {name} 才能删除事项', 'Only the matter owner, {name}, can delete it', 'Solo el responsable, {name}, puede eliminarlo'],
+  'toast.onlyOwnerEdit': ['只有事项负责人 {name} 才能修改事项', 'Only the matter owner, {name}, can edit this matter', 'Solo el responsable, {name}, puede modificar este asunto'],
+  'toast.importStatusInvalid': ['事项“{title}”中“状态”填写错误，请点击对应的事项修改！', 'The “Status” in matter “{title}” is invalid. Open that matter to correct it.', 'El “Estado” del asunto «{title}» es incorrecto. Abra el asunto correspondiente para corregirlo.'],
   'toast.onlyStepOwner': ['只有当前步骤负责人 {name} 才能完成这一步', 'Only the current step owner, {name}, can complete it', 'Solo el responsable del paso, {name}, puede completarlo'],
   'toast.adminRestore': ['仅事项负责人 {name} 可以恢复事项', 'Only matter owner {name} can restore it', 'Solo el responsable {name} puede restaurarlo'],
   'toast.adminPurge': ['仅事项负责人 {name} 可以彻底删除事项', 'Only matter owner {name} can delete it permanently', 'Solo el responsable {name} puede eliminarlo definitivamente'],
@@ -734,6 +736,19 @@ function normalizeImportedDate(value) {
   if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
   const d = new Date(raw.replace(/[年\/]/g, '-').replace(/月/g, '-').replace(/日/g, ''));
   return Number.isNaN(d.getTime()) ? '' : iso(d);
+}
+function normalizeImportedStatus(value) {
+  const raw = String(value == null ? '' : value).toLowerCase()
+    .replace(/[🟢🟡🔴]/g, ' ')
+    .replace(/[·•]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!raw) return '';
+  const has = values => values.some(value => raw.includes(value));
+  if (has(['紧急', 'urgent', 'urgente', '需要团队立即处理', 'team must act now', 'act now', 'el equipo debe actuar ya']) || ['red', 'rojo'].includes(raw)) return 'red';
+  if (has(['关注', 'watch', 'attention', 'atención', '等待客户', 'waiting on client', 'at risk', 'en riesgo']) || ['yellow', 'amarillo'].includes(raw)) return 'yellow';
+  if (has(['正常', 'normal', 'on track', 'en curso']) || ['green', 'verde'].includes(raw)) return 'green';
+  return '';
 }
 function isThisWeek(s) {
   const n = daysFromToday(s);
@@ -1678,6 +1693,7 @@ function viewMatter(id) {
   const stageField = selectWithCustom('data-field="stage"', m.stage, stageOptions(), t('form.customStagePh'));
   const waitField = selectWithCustom('data-field="waiting"', m.waiting, waitingOptions(), t('form.customWaitPh'));
   const statusOpts = Object.keys(STATUS).map(k => `<option value="${k}" ${m.status === k ? 'selected' : ''}>${STATUS[k].dot} ${esc(statusName(k))}</option>`).join('');
+  const canEditMatter = u.id === m.owner;
 
   const teamBoxes = USERS.map(x => `
     <label class="member-item">
@@ -1702,7 +1718,9 @@ function viewMatter(id) {
     <div class="detail-grid">
       <div>
         <div class="card card-pad" data-matter="${m.id}">
+          <fieldset style="border:0;padding:0;margin:0;min-width:0" ${canEditMatter ? '' : 'disabled'}>
           <div class="section-title">${esc(t('detail.info'))}</div>
+          ${canEditMatter ? '' : `<div class="hint" style="margin-bottom:12px">${esc(t('toast.onlyOwnerEdit', { name: (USER[m.owner] || {}).name || m.owner }))}</div>`}
           <div class="grid-2">
             <div class="field"><label>${esc(t('detail.client'))}</label><input data-field="client" value="${esc(L(m.client))}"></div>
             <div class="field"><label>${esc(t('detail.title'))}</label><input data-field="title" value="${esc(L(m.title))}"></div>
@@ -1721,6 +1739,7 @@ function viewMatter(id) {
           <div class="field"><label>${esc(t('detail.notes'))}</label><textarea data-field="notes" rows="3">${esc(L(m.notes))}</textarea></div>
           <div class="field"><label>${esc(t('detail.members'))}</label><div class="member-list">${teamBoxes}</div>
             <div class="hint">${esc(t('detail.membersHint'))}</div></div>
+          </fieldset>
           <div class="danger-zone">
             <button class="btn btn-danger btn-sm" type="button" data-action="delete-matter" data-id="${m.id}">${esc(t('detail.delete'))}</button>
             <span class="small muted">${u.id === m.owner
@@ -2280,9 +2299,14 @@ function createMatter(data) {
 }
 
 function saveMatterFromDom(id) {
-  const box = document.querySelector(`[data-matter="${id}"]`);
   const m = matterById(id);
-  if (!box || !m) return;
+  if (!m) return;
+  if (currentUser().id !== m.owner) {
+    toast(t('toast.onlyOwnerEdit', { name: (USER[m.owner] || {}).name || m.owner }));
+    return;
+  }
+  const box = document.querySelector(`[data-matter="${id}"]`);
+  if (!box) return;
   const get = f => { const el = box.querySelector(`[data-field="${f}"]`); return el ? el.value : undefined; };
   const changes = [];
   const before = { ...m };
@@ -2859,8 +2883,21 @@ document.addEventListener('submit', ev => {
         const validFormat = rows.length > 0 && requiredHeaders.every(name => headerAliases[name].some(alias => headersPresent.includes(alias.toLowerCase())));
         if (!validFormat) { state.modal = { type: 'import-invalid' }; render(); return; }
         let ok = 0, bad = 0;
-        rows.forEach(row => { const d = {}; Object.keys(aliases).forEach(k => d[k] = String(val(row, aliases[k]) ?? '').trim()); d.due = normalizeImportedDate(val(row, aliases.due)); d.owner = USERS.find(u => u.name === d.owner || u.id === d.owner)?.id || currentUser().id; d.nextOwner = d.owner; d.status = ['red','yellow','green'].includes(d.status) ? d.status : 'green'; d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none'; if (d.client && d.title && d.next && d.due && createMatter(d)) ok++; else bad++; });
+        const invalidStatuses = [];
+        rows.forEach(row => {
+          const d = {};
+          Object.keys(aliases).forEach(k => d[k] = String(val(row, aliases[k]) ?? '').trim());
+          d.due = normalizeImportedDate(val(row, aliases.due));
+          d.owner = USERS.find(u => u.name === d.owner || u.id === d.owner)?.id || currentUser().id;
+          d.nextOwner = d.owner;
+          const importedStatus = normalizeImportedStatus(val(row, aliases.status));
+          if (d.status && !importedStatus) invalidStatuses.push(d.title || d.client || '—');
+          d.status = importedStatus || 'green';
+          d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none';
+          if (d.client && d.title && d.next && d.due && createMatter(d)) ok++; else bad++;
+        });
         state.modal = null; render(); toast(t('modal.import.result', { ok, bad }));
+        invalidStatuses.forEach(title => toast(t('toast.importStatusInvalid', { title })));
       } catch (e) { state.modal = { type:'notice', titleKey:'modal.import.title', body: esc(String(e.message || e)) }; render(); }
     };
     if (/\.xlsx?$/i.test(file.name)) reader.readAsArrayBuffer(file); else reader.readAsText(file);
