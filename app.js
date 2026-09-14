@@ -1353,8 +1353,8 @@ function toast(msg) {
   el.className = 'toast';
   el.textContent = msg;
   root.appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 1700);
-  setTimeout(() => el.remove(), 2100);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 4700);
+  setTimeout(() => el.remove(), 5000);
 }
 function go(hash) { location.hash = hash; }
 
