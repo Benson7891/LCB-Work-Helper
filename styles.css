@@ -146,6 +146,9 @@ table.grid th{text-align:left;padding:10px 12px;background:#f8fafc;color:var(--i
 table.grid td{padding:11px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
 table.grid tbody tr{cursor:pointer}
 table.grid tbody tr:hover{background:#fafcff}
+table.grid tbody tr.import-error>td{background:#fff0f0}
+table.grid tbody tr.import-error:hover>td{background:#ffe5e5}
+.import-error-label{max-width:150px;margin:0 0 5px;color:#b42318;font-size:11px;font-weight:700;line-height:1.3;white-space:normal}
 table.grid td.nw{white-space:nowrap}
 .bulk-cell{width:42px;min-width:42px;text-align:center!important;padding-left:10px!important;padding-right:6px!important}
 .bulk-check{width:17px;height:17px;margin:0;accent-color:var(--brand);vertical-align:middle;cursor:pointer}

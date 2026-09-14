@@ -526,6 +526,8 @@ const STR = {
   'toast.onlyOwnerDelete': ['只有项目负责人 {name} 才能删除事项', 'Only the matter owner, {name}, can delete it', 'Solo el responsable, {name}, puede eliminarlo'],
   'toast.onlyOwnerEdit': ['只有事项负责人 {name} 才能修改事项', 'Only the matter owner, {name}, can edit this matter', 'Solo el responsable, {name}, puede modificar este asunto'],
   'toast.importStatusInvalid': ['事项“{title}”中“状态”填写错误，请点击对应的事项修改！', 'The “Status” in matter “{title}” is invalid. Open that matter to correct it.', 'El “Estado” del asunto «{title}» es incorrecto. Abra el asunto correspondiente para corregirlo.'],
+  'modal.importStatusInvalid.title': ['导入完成，但部分状态填写错误', 'Import complete, but some statuses are invalid', 'Importación completada, pero algunos estados son incorrectos'],
+  'list.importError': ['错误的事项，请点击修改', 'Invalid matter. Click to edit', 'Asunto incorrecto. Haga clic para modificarlo'],
   'toast.onlyStepOwner': ['只有当前步骤负责人 {name} 才能完成这一步', 'Only the current step owner, {name}, can complete it', 'Solo el responsable del paso, {name}, puede completarlo'],
   'toast.adminRestore': ['仅事项负责人 {name} 可以恢复事项', 'Only matter owner {name} can restore it', 'Solo el responsable {name} puede restaurarlo'],
   'toast.adminPurge': ['仅事项负责人 {name} 可以彻底删除事项', 'Only matter owner {name} can delete it permanently', 'Solo el responsable {name} puede eliminarlo definitivamente'],
@@ -1540,9 +1542,9 @@ function matterRowsHTML() {
   const list = sorted(filterMatters());
   if (!list.length) return '';
   return list.map(m => `
-    <tr data-action="open-matter" data-id="${m.id}">
+    <tr class="${m.importStatusError ? 'import-error' : ''}" data-action="open-matter" data-id="${m.id}">
       <td class="bulk-cell"><input class="bulk-check" type="checkbox" data-action="toggle-bulk-matter" data-id="${m.id}" ${state.bulkSelected.has(String(m.id)) ? 'checked' : ''} ${currentUser().id === m.owner || isAdmin() ? '' : 'disabled'} aria-label="${esc(t('list.bulkDelete'))}: ${esc(m.no)}"></td>
-      <td class="nw">${esc(m.no)}</td>
+      <td class="nw">${m.importStatusError ? `<div class="import-error-label">${esc(t('list.importError'))}</div>` : ''}${esc(m.no)}</td>
       <td>${esc(L(m.client))}</td>
       <td><b>${esc(L(m.title))}</b>${m.notes ? `<div class="small muted">${esc(L(m.notes))}</div>` : ''}</td>
       <td>${areaTag(m.area)}</td>
@@ -1971,6 +1973,15 @@ function modalNotice(mo) {
   );
 }
 
+function importStatusErrorModal(titles) {
+  if (!titles.length) return null;
+  return {
+    type: 'notice',
+    titleKey: 'modal.importStatusInvalid.title',
+    body: titles.map(title => `<div>${esc(t('toast.importStatusInvalid', { title }))}</div>`).join(''),
+  };
+}
+
 function modalCompleteStep(mo) {
   const m = matterById(mo.matterId);
   if (!m) return '';
@@ -2281,6 +2292,7 @@ function createMatter(data) {
     stage: stage || STAGES[0], status: data.status, reason: data.reason || '',
     next: data.next, nextOwner: data.nextOwner || data.owner,
     due: data.due, waiting: waiting || 'none',
+    importStatusError: !!data.importStatusError,
     files: [], lastContact: iso(today()), notes: '',
   };
   if (!m.team.includes(m.owner)) m.team.push(m.owner);
@@ -2341,6 +2353,7 @@ function saveMatterFromDom(id) {
 
   if (!m.client || !m.title || !m.next || !m.due) { toast(t('toast.needClient')); return; }
   if ((m.status === 'red' || m.status === 'yellow') && !String(L(m.reason) || '').trim()) { toast(t('toast.needReason')); return; }
+  if (m.importStatusError) { m.importStatusError = false; changes.push('importStatusError'); }
 
   if (before.status !== m.status) addLogKey(id, currentUser().id, 'detail.entry.status', { status: { __t: 'status.' + m.status, prefix: STATUS[m.status].dot + ' ' } });
   if (before.next !== m.next) addLogKey(id, currentUser().id, 'detail.entry.next', { next: L(m.next) });
@@ -2892,12 +2905,14 @@ document.addEventListener('submit', ev => {
           d.nextOwner = d.owner;
           const importedStatus = normalizeImportedStatus(val(row, aliases.status));
           if (d.status && !importedStatus) invalidStatuses.push(d.title || d.client || '—');
+          d.importStatusError = !!(d.status && !importedStatus);
           d.status = importedStatus || 'green';
           d.area = d.area || 'other'; d.stage = d.stage || STAGES[0]; d.waiting = d.waiting || 'none';
           if (d.client && d.title && d.next && d.due && createMatter(d)) ok++; else bad++;
         });
-        state.modal = null; render(); toast(t('modal.import.result', { ok, bad }));
-        invalidStatuses.forEach(title => toast(t('toast.importStatusInvalid', { title })));
+        state.modal = importStatusErrorModal(invalidStatuses);
+        render();
+        toast(t('modal.import.result', { ok, bad }));
       } catch (e) { state.modal = { type:'notice', titleKey:'modal.import.title', body: esc(String(e.message || e)) }; render(); }
     };
     if (/\.xlsx?$/i.test(file.name)) reader.readAsArrayBuffer(file); else reader.readAsText(file);
