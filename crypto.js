@@ -4,6 +4,10 @@
   const enc = new TextEncoder();
   const dec = new TextDecoder();
   const state = { userId: '', privateKey: null, publicKey: null, ready: false, available: true };
+  const matterKeys = new Map();
+  const sealedLogCache = new Map();
+  let publicDirectory = null;
+  let pendingKeyRows = [];
 
   function b64(bytes) {
     let text = '';
@@ -108,9 +112,93 @@
   async function openJson(key, sealed) {
     return JSON.parse(dec.decode(await decryptBytes(key, sealed)));
   }
+  async function directory(request) {
+    if (publicDirectory) return publicDirectory;
+    const rows = await requestJson(request, '/lcb_public_keys?select=user_id,public_jwk');
+    publicDirectory = new Map(rows.map(row => [row.user_id, row.public_jwk]));
+    return publicDirectory;
+  }
+  async function loadMatterKey(matterId, request) {
+    const id = String(matterId);
+    if (matterKeys.has(id)) return matterKeys.get(id);
+    const rows = await requestJson(request, `/lcb_matter_keys?select=wrapped_key&matter_id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(state.userId)}`);
+    if (!rows.length) throw new Error('missing-matter-key');
+    const key = await unwrapMatterKey(rows[0].wrapped_key);
+    matterKeys.set(id, key);
+    return key;
+  }
+  async function prepareMatter(matter, request) {
+    if (!state.ready) throw new Error('crypto-locked');
+    const id = String(matter.id);
+    let key = matterKeys.get(id);
+    if (!key) {
+      const rows = await requestJson(request, `/lcb_matter_keys?select=wrapped_key&matter_id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(state.userId)}`);
+      if (rows.length) key = await unwrapMatterKey(rows[0].wrapped_key);
+      else key = await generateMatterKey();
+      matterKeys.set(id, key);
+    }
+    if (matter.owner === state.userId || state.userId === 'carol') {
+      const keys = await directory(request);
+      const recipients = [...new Set([...(matter.team || []), matter.owner, 'carol'].filter(Boolean))];
+      const missing = recipients.filter(userId => !keys.has(userId));
+      if (missing.length) throw new Error('missing-public-keys:' + missing.join(','));
+      pendingKeyRows = pendingKeyRows.filter(row => row.matter_id !== id);
+      for (const userId of recipients) {
+        pendingKeyRows.push({ matter_id:id, user_id:userId, wrapped_key:await wrapMatterKey(key, keys.get(userId)) });
+      }
+    }
+    return {
+      id:matter.id, no:matter.no, owner:matter.owner, team:matter.team || [], deletedAt:matter.deletedAt || null,
+      encrypted:'lcb-e2ee-v1', sealed:await sealJson(key, matter),
+    };
+  }
+  async function openMatter(data, request) {
+    if (!data || data.encrypted !== 'lcb-e2ee-v1') return data;
+    return openJson(await loadMatterKey(data.id, request), data.sealed);
+  }
+  async function flushMatterKeys(request) {
+    if (!pendingKeyRows.length) return;
+    const rows = pendingKeyRows.slice();
+    pendingKeyRows = [];
+    await requestJson(request, '/lcb_matter_keys', {
+      method:'POST', headers:{ Prefer:'resolution=merge-duplicates,return=minimal' }, body:JSON.stringify(rows),
+    });
+  }
+  function logPayload(log) {
+    const payload = Object.assign({}, log);
+    delete payload.readBy; delete payload.deletedFor;
+    return payload;
+  }
+  async function prepareLog(log, request) {
+    const key = await loadMatterKey(log.matterId, request);
+    const payload = logPayload(log);
+    const fingerprint = JSON.stringify(payload);
+    let cached = sealedLogCache.get(String(log.id));
+    if (!cached || cached.fingerprint !== fingerprint) {
+      cached = { fingerprint, sealed:await sealJson(key, payload) };
+      sealedLogCache.set(String(log.id), cached);
+    }
+    return {
+      id:log.id, matterId:log.matterId, at:log.at, by:log.by, key:log.key,
+      notifyTo:log.notifyTo || [], readBy:log.readBy || [], deletedFor:log.deletedFor || [],
+      encrypted:'lcb-e2ee-v1', sealed:cached.sealed,
+    };
+  }
+  async function openLog(data, request) {
+    if (!data || data.encrypted !== 'lcb-e2ee-v1') return data;
+    const payload = await openJson(await loadMatterKey(data.matterId, request), data.sealed);
+    payload.readBy = data.readBy || [];
+    payload.deletedFor = data.deletedFor || [];
+    sealedLogCache.set(String(data.id), { fingerprint:JSON.stringify(logPayload(payload)), sealed:data.sealed });
+    return payload;
+  }
   function lock() {
     state.userId = ''; state.privateKey = null; state.publicKey = null; state.ready = false;
+    matterKeys.clear(); sealedLogCache.clear(); publicDirectory = null; pendingKeyRows = [];
   }
 
-  globalThis.LCBCrypto = { state, initialize, lock, generateMatterKey, wrapMatterKey, unwrapMatterKey, sealJson, openJson };
+  globalThis.LCBCrypto = {
+    state, initialize, lock, generateMatterKey, wrapMatterKey, unwrapMatterKey, sealJson, openJson,
+    prepareMatter, openMatter, flushMatterKeys, prepareLog, openLog,
+  };
 })();

@@ -984,15 +984,14 @@ function seedLogs() {
 
 /* ------------------------------ 运行时状态 ------------------------------ */
 
-// 登录令牌只保留在当前标签页；关闭标签页后自动消失。
+// 加密私钥只在内存中，刷新页面后必须重新输入原密码解锁。
 try { localStorage.removeItem(KEY.auth); } catch (e) { /* clear legacy token */ }
-let authSession = loadSessionValue(KEY.auth, null);
+saveSessionValue(KEY.auth, null);
+let authSession = null;
 let matters = REMOTE_ENABLED ? [] : (load(KEY.matters, null) || []);
 let logs = REMOTE_ENABLED ? [] : (load(KEY.logs, null) || []);
 let seq = REMOTE_ENABLED ? 0 : load(KEY.seq, 0);
-let session = authSession && authSession.email
-  ? (() => { const u = USERS.find(x => x.email.toLowerCase() === String(authSession.email).toLowerCase()); return u ? { userId: u.id } : null; })()
-  : (!REMOTE_ENABLED ? load(KEY.session, null) : null);
+let session = !REMOTE_ENABLED ? load(KEY.session, null) : null;
 const state = {
   filters: { q: '', area: '', owner: '', status: '', waiting: '' },
   bulkSelected: new Set(),
@@ -1145,8 +1144,12 @@ async function pullRemote(opts) {
     const lRows = lRes.ok ? await lRes.json() : [];
     const metaRows = metaRes.ok ? await metaRes.json() : [];
 
-    const nextMatters = mRows.map(r => r.data);
-    const nextLogs = lRows.map(r => r.data);
+    const nextMatters = globalThis.LCBCrypto && LCBCrypto.state.ready
+      ? await Promise.all(mRows.map(r => LCBCrypto.openMatter(r.data, sbFetch)))
+      : mRows.map(r => r.data);
+    const nextLogs = globalThis.LCBCrypto && LCBCrypto.state.ready
+      ? await Promise.all(lRows.map(r => LCBCrypto.openLog(r.data, sbFetch)))
+      : lRows.map(r => r.data);
     const seqRow = metaRows.filter(r => r.key === 'seq')[0];
     const nextSeq = seqRow && typeof seqRow.value === 'number' ? seqRow.value : seq;
     const changed = JSON.stringify(nextMatters) !== JSON.stringify(matters) ||
@@ -1196,14 +1199,19 @@ async function pushRemote() {
   sync.busy = true;
   try {
     if (matters.length) {
-      const rows = matters.map(m => ({ id: String(m.id), data: m, updated_at: new Date().toISOString() }));
+      const encrypted = globalThis.LCBCrypto && LCBCrypto.state.ready
+        ? await Promise.all(matters.map(m => LCBCrypto.prepareMatter(m, sbFetch))) : matters;
+      const rows = encrypted.map((m, i) => ({ id: String(matters[i].id), data: m, updated_at: new Date().toISOString() }));
       const r = await sbFetch('/matters', { method: 'POST', headers: UPSERT, body: JSON.stringify(rows) });
       if (r.status === 404) throw new Error('tables-missing');
       if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (globalThis.LCBCrypto && LCBCrypto.state.ready) await LCBCrypto.flushMatterKeys(sbFetch);
     }
     // 已读状态会修改旧日志，所以每次都 upsert 全部日志，确保其他设备同步。
     if (logs.length) {
-      const rows = logs.map(l => ({ id: l.id, matter_id: String(l.matterId), data: l }));
+      const encrypted = globalThis.LCBCrypto && LCBCrypto.state.ready
+        ? await Promise.all(logs.map(l => LCBCrypto.prepareLog(l, sbFetch))) : logs;
+      const rows = encrypted.map((l, i) => ({ id: logs[i].id, matter_id: String(logs[i].matterId), data: l }));
       const r = await sbFetch('/logs', { method: 'POST', headers: UPSERT, body: JSON.stringify(rows) });
       if (r.ok) logs.forEach(l => sync.syncedLogs.add(l.id));
     }
