@@ -1725,7 +1725,7 @@ function syncBadge() {
   if (st === 'error') {
     const msg = sync.error === 'tables-missing' ? t('sync.tablesMissing') : sync.error;
     return `<button class="sync-pill error" type="button" data-action="sync-now"
-      title="${esc(t('sync.tipError', { msg }))}">⚠ ${esc(t('sync.failedClick'))}</button>`;
+      title="${esc(t('sync.tipError', { msg }))}">⚠ ${esc(t('sync.failedClick'))}<span style="display:block;font-size:10px;font-weight:500;margin-top:2px">${esc(msg)}</span></button>`;
   }
   const time = sync.lastAt ? fmtStamp(sync.lastAt).slice(11) : '—';
   return `<button class="sync-pill ok" type="button" data-action="sync-now"
