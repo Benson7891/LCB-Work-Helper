@@ -175,12 +175,9 @@
     if (!pendingKeyRows.length) return;
     const rows = pendingKeyRows.slice();
     pendingKeyRows = [];
-    await requestJson(request, '/lcb_matter_keys', {
-      method:'POST', headers:{ Prefer:'resolution=merge-duplicates,return=minimal' }, body:JSON.stringify(rows),
+    await requestJson(request, '/rpc/lcb_store_wrapped_keys', {
+      method:'POST', body:JSON.stringify({ payload:rows }),
     });
-    for (const [matterId, recipients] of pendingRecipientSets) {
-      await requestJson(request, `/lcb_matter_keys?matter_id=eq.${encodeURIComponent(matterId)}&user_id=not.in.(${recipients.map(encodeURIComponent).join(',')})`, { method:'DELETE' });
-    }
     pendingRecipientSets.clear();
   }
   function logPayload(log) {
