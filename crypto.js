@@ -105,7 +105,8 @@
   async function unwrapMatterKey(wrapped) {
     if (!state.privateKey) throw new Error('crypto-locked');
     const raw = await crypto.subtle.decrypt({ name:'RSA-OAEP' }, state.privateKey, unb64(wrapped));
-    return crypto.subtle.importKey('raw', raw, { name:'AES-GCM' }, false, ['encrypt','decrypt']);
+    // Owners must be able to re-wrap the same matter key after a fresh login.
+    return crypto.subtle.importKey('raw', raw, { name:'AES-GCM' }, true, ['encrypt','decrypt']);
   }
   async function sealJson(key, value) {
     const sealed = await encryptBytes(key, enc.encode(JSON.stringify(value)));
