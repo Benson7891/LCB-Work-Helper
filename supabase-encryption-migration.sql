@@ -70,7 +70,4 @@ revoke all on public.lcb_public_keys, public.lcb_private_keys, public.lcb_matter
 grant select, insert, update on public.lcb_public_keys, public.lcb_private_keys to authenticated;
 grant select, insert, update, delete on public.lcb_matter_keys to authenticated;
 
--- Snapshot before ciphertext migration. Only dashboard/database administrators can access it.
-create table if not exists private_lcb_matters_backup_20260915 as table public.matters;
-create table if not exists private_lcb_logs_backup_20260915 as table public.logs;
-revoke all on private_lcb_matters_backup_20260915, private_lcb_logs_backup_20260915 from anon, authenticated;
+-- Do not create plaintext backups here. Export an encrypted backup separately if needed.
