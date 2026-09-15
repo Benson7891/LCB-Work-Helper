@@ -1209,10 +1209,22 @@ async function pushRemote() {
       const encrypted = globalThis.LCBCrypto && LCBCrypto.state.ready
         ? await Promise.all(matters.map(m => LCBCrypto.prepareMatter(m, sbFetch))) : matters;
       const rows = encrypted.map((m, i) => ({ id: String(matters[i].id), data: m, updated_at: new Date().toISOString() }));
+      if (globalThis.LCBCrypto && LCBCrypto.state.ready) {
+        // 新事项先建立不含敏感正文的访问空壳，密钥成功写入后才上传密文。
+        const shells = matters.map(m => ({
+          id:String(m.id),
+          data:{ id:m.id, no:m.no, owner:m.owner, team:m.team || [], deletedAt:m.deletedAt || null, encrypted:'lcb-e2ee-pending' },
+          updated_at:new Date().toISOString(),
+        }));
+        const shellResult = await sbFetch('/matters', {
+          method:'POST', headers:{ Prefer:'resolution=ignore-duplicates,return=minimal' }, body:JSON.stringify(shells),
+        });
+        if (!shellResult.ok) throw new Error('matter-shell-http-' + shellResult.status);
+        await LCBCrypto.flushMatterKeys(sbFetch);
+      }
       const r = await sbFetch('/matters', { method: 'POST', headers: UPSERT, body: JSON.stringify(rows) });
       if (r.status === 404) throw new Error('tables-missing');
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      if (globalThis.LCBCrypto && LCBCrypto.state.ready) await LCBCrypto.flushMatterKeys(sbFetch);
     }
     // 已读状态会修改旧日志，所以每次都 upsert 全部日志，确保其他设备同步。
     if (logs.length) {
