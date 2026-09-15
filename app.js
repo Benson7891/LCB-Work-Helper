@@ -1209,8 +1209,11 @@ async function pushRemote() {
     }
     await sbFetch('/meta', { method: 'POST', headers: UPSERT, body: JSON.stringify([{ key: 'seq', value: seq }]) });
     for (const id of [...sync.purged]) {
-      await sbFetch('/matters?id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
-      await sbFetch('/logs?matter_id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
+      // 日志权限依赖事项仍存在，必须先删日志，再删事项。
+      const logDelete = await sbFetch('/logs?matter_id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!logDelete.ok) throw new Error('log-delete-http-' + logDelete.status);
+      const matterDelete = await sbFetch('/matters?id=eq.' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!matterDelete.ok) throw new Error('matter-delete-http-' + matterDelete.status);
       sync.purged.delete(id);
     }
     sync.status = 'ok';
