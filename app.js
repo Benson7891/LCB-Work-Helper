@@ -1045,6 +1045,8 @@ async function signIn(email, password) {
     expires_at: Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600),
     email: data.user && data.user.email };
   saveSessionValue(KEY.auth, authSession);
+  const member = USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (globalThis.LCBCrypto && member) await LCBCrypto.initialize(member.id, password, sbFetch);
 }
 
 async function refreshAuth() {
