@@ -2,6 +2,13 @@
 delete from public.logs l
 where not exists (select 1 from public.matters m where m.id = l.matter_id);
 
+-- The pre-encryption backup contains the same orphaned test activity.
+delete from public.private_lcb_logs_backup_20260915 l
+where not exists (
+  select 1 from public.private_lcb_matters_backup_20260915 m
+  where m.id = l.matter_id
+);
+
 -- Future matter deletion also removes its activity atomically.
 alter table public.logs drop constraint if exists logs_matter_id_fkey;
 alter table public.logs
