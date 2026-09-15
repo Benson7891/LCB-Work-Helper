@@ -5,9 +5,11 @@
   const dec = new TextDecoder();
   const state = { userId: '', privateKey: null, publicKey: null, ready: false, available: true };
   const matterKeys = new Map();
+  const matterRecipients = new Map();
   const sealedLogCache = new Map();
   let publicDirectory = null;
   let pendingKeyRows = [];
+  const pendingRecipientSets = new Map();
 
   function b64(bytes) {
     let text = '';
@@ -130,6 +132,8 @@
   async function prepareMatter(matter, request) {
     if (!state.ready) throw new Error('crypto-locked');
     const id = String(matter.id);
+    const recipients = [...new Set([...(matter.team || []), matter.owner, 'carol'].filter(Boolean))].sort();
+    const recipientFingerprint = recipients.join(',');
     let key = matterKeys.get(id);
     if (!key) {
       const rows = await requestJson(request, `/lcb_matter_keys?select=wrapped_key&matter_id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(state.userId)}`);
@@ -138,14 +142,20 @@
       matterKeys.set(id, key);
     }
     if (matter.owner === state.userId || state.userId === 'carol') {
+      const previousRecipients = matterRecipients.get(id);
+      if (previousRecipients && previousRecipients !== recipientFingerprint) {
+        key = await generateMatterKey();
+        matterKeys.set(id, key);
+      }
       const keys = await directory(request);
-      const recipients = [...new Set([...(matter.team || []), matter.owner, 'carol'].filter(Boolean))];
       const missing = recipients.filter(userId => !keys.has(userId));
       if (missing.length) throw new Error('missing-public-keys:' + missing.join(','));
       pendingKeyRows = pendingKeyRows.filter(row => row.matter_id !== id);
       for (const userId of recipients) {
         pendingKeyRows.push({ matter_id:id, user_id:userId, wrapped_key:await wrapMatterKey(key, keys.get(userId)) });
       }
+      pendingRecipientSets.set(id, recipients);
+      matterRecipients.set(id, recipientFingerprint);
     }
     return {
       id:matter.id, no:matter.no, owner:matter.owner, team:matter.team || [], deletedAt:matter.deletedAt || null,
@@ -154,7 +164,10 @@
   }
   async function openMatter(data, request) {
     if (!data || data.encrypted !== 'lcb-e2ee-v1') return data;
-    return openJson(await loadMatterKey(data.id, request), data.sealed);
+    const matter = await openJson(await loadMatterKey(data.id, request), data.sealed);
+    const recipients = [...new Set([...(matter.team || []), matter.owner, 'carol'].filter(Boolean))].sort();
+    matterRecipients.set(String(matter.id), recipients.join(','));
+    return matter;
   }
   async function flushMatterKeys(request) {
     if (!pendingKeyRows.length) return;
@@ -163,6 +176,10 @@
     await requestJson(request, '/lcb_matter_keys', {
       method:'POST', headers:{ Prefer:'resolution=merge-duplicates,return=minimal' }, body:JSON.stringify(rows),
     });
+    for (const [matterId, recipients] of pendingRecipientSets) {
+      await requestJson(request, `/lcb_matter_keys?matter_id=eq.${encodeURIComponent(matterId)}&user_id=not.in.(${recipients.map(encodeURIComponent).join(',')})`, { method:'DELETE' });
+    }
+    pendingRecipientSets.clear();
   }
   function logPayload(log) {
     const payload = Object.assign({}, log);
@@ -194,7 +211,7 @@
   }
   function lock() {
     state.userId = ''; state.privateKey = null; state.publicKey = null; state.ready = false;
-    matterKeys.clear(); sealedLogCache.clear(); publicDirectory = null; pendingKeyRows = [];
+    matterKeys.clear(); matterRecipients.clear(); sealedLogCache.clear(); publicDirectory = null; pendingKeyRows = []; pendingRecipientSets.clear();
   }
 
   globalThis.LCBCrypto = {
