@@ -1078,6 +1078,7 @@ async function idleLogout() {
   if (sync.dirty) await pushRemote();
   session = null;
   authSession = null;
+  if (globalThis.LCBCrypto) LCBCrypto.lock();
   saveSessionValue(KEY.auth, null);
   clearPrivateCache();
   state.bulkSelected.clear();
@@ -2768,6 +2769,7 @@ document.addEventListener('click', ev => {
     case 'confirm-logout':
       session = null;
       authSession = null;
+      if (globalThis.LCBCrypto) LCBCrypto.lock();
       saveSessionValue(KEY.auth, null);
       clearPrivateCache();
       state.bulkSelected.clear();
@@ -3378,7 +3380,7 @@ if (REMOTE_ENABLED) {
   clearPrivateCache();
   refreshAuth().then(ok => {
     if (ok) pullRemote({ initial: true });
-    else { authSession = null; session = null; saveSessionValue(KEY.auth, null); render(); }
+    else { authSession = null; session = null; if (globalThis.LCBCrypto) LCBCrypto.lock(); saveSessionValue(KEY.auth, null); render(); }
   });
   setInterval(() => {
     if (!sync.dirty && sync.status !== 'error') pullRemote({ background: true });
