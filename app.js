@@ -54,44 +54,53 @@ const LANG_INDEX = { zh: 0, en: 1, es: 2 };
 const SECURITY_NOTICE = {
   zh: {
     title: '新版事务管理器安全性比旧版高在哪？',
-    intro: '新版主要安全在这几处：',
-    hide: '7 天内不再显示', close: '我知道了',
+    intro: '简单说：',
+    hide: '今日不再显示', close: '我知道了',
     items: [
-      ['密码不再写在网页源码里', '别人查看 GitHub 代码，也看不到三人的密码。', '把网站源码扒个底朝天也找不到账号密码。'],
-      ['改为 Supabase 真登录', '账号密码由服务器验证，不是浏览器自己判断。', '身份验证交给专业托管平台，安全性提高。'],
-      ['关闭匿名数据库访问', '未登录请求现在直接返回 401（未授权），不能读取、修改或删除事项。', '想绕过登录动网站，没门。'],
-      ['数据库执行成员权限', 'Carlos、Héctor 只能读取自己参与的事项；Carol 可查看全部。', 'Carol 是管理员，爱咋搞就咋搞。'],
-      ['浏览器不再长期缓存案件正文', '退出后会清除旧缓存，减少共用电脑泄露风险。', '退出后敏感案件信息不会继续留在浏览器缓存里。'],
-      ['增加网页安全策略', '限制网页只能连接指定数据库和脚本来源，降低恶意脚本注入风险。', '假数据库和来路不明的脚本别想混进来。'],
-      ['账号保持不变', '网址、邮箱、密码都没有改变。', '对你使用没有影响。'],
+      ['数据库不再存放可直接阅读的案件内容', '现在保存的是看不懂的密文。'],
+      ['数据库被扒走也看不到正文', '客户名、事项标题、备注和聊天记录都不会以明文保存。'],
+      ['每个案件使用不同钥匙', '一个案件的钥匙出问题，不会连累其他案件。'],
+      ['只有原来的三个账号能解密', '网址、邮箱和密码都没有改变。'],
+      ['未登录的人无法进入数据库', '匿名请求会直接被拒绝。'],
+      ['成员只能查看自己参与的事项', 'Carlos、Héctor 只能看参与的事项，Carol 可以查看全部。'],
+      ['普通成员不能冒充负责人', '也不能偷偷修改事项成员名单。'],
+      ['操作记录不能随便修改', '永久删除案件时，相关记录也会一起清除。'],
+      ['刷新或关闭网页后需要重新登录', '避免别人拿到已经登录的电脑后直接查看案件。'],
+      ['网站不再临时加载外部脚本', '减少第三方脚本被替换或夹带恶意代码的风险。'],
     ],
   },
   en: {
     title: 'How is the new task manager more secure?',
-    intro: 'The main security improvements are:',
-    hide: 'Do not show again for 7 days', close: 'Got it',
+    intro: 'In plain language:',
+    hide: 'Do not show again today', close: 'Got it',
     items: [
-      ['Passwords are no longer stored in the source code', 'Viewing the GitHub code no longer reveals any team password.', 'Tear the source code apart: the passwords are not there.'],
-      ['Real Supabase authentication', 'Passwords are verified by the server, not by the browser.', 'A professional authentication service now checks identity.'],
-      ['Anonymous database access is disabled', 'Requests without a login receive 401 Unauthorized and cannot read, edit or delete matters.', 'Trying to bypass the login page gets you nowhere.'],
-      ['Permissions are enforced by the database', 'Carlos and Héctor only see matters they belong to; Carol can see all matters.', 'Carol is the administrator and has full control.'],
-      ['Matter text is no longer kept in long-term browser cache', 'Signing out clears old cached data, reducing exposure on shared computers.', 'Sensitive matter information does not stay behind after logout.'],
-      ['Stricter browser security rules', 'The site may connect only to approved databases and script sources.', 'Impostor databases and untrusted scripts are blocked.'],
-      ['Accounts remain unchanged', 'The URL, emails and passwords have not changed.', 'You use it exactly as before.'],
+      ['The database no longer stores readable matter content', 'It now stores ciphertext that cannot be read directly.'],
+      ['A stolen database does not reveal the text', 'Client names, matter titles, notes and chat messages are not stored in plaintext.'],
+      ['Every matter has a different key', 'A compromised key for one matter does not expose the others.'],
+      ['Only the original three accounts can decrypt', 'The URL, emails and passwords have not changed.'],
+      ['People who are not signed in cannot enter the database', 'Anonymous requests are rejected.'],
+      ['Members only see matters they participate in', 'Carlos and Héctor see their matters; Carol can see all matters.'],
+      ['Ordinary members cannot impersonate the owner', 'They also cannot secretly change the member list.'],
+      ['Activity history cannot be freely rewritten', 'Permanently deleting a matter also removes its related history.'],
+      ['Refreshing or closing the page requires another sign-in', 'This prevents someone from using an already signed-in computer to read matters.'],
+      ['The site no longer loads scripts live from third parties', 'This reduces the risk of a third-party script being replaced with malicious code.'],
     ],
   },
   es: {
     title: '¿Por qué es más seguro el nuevo gestor?',
-    intro: 'Las principales mejoras de seguridad son:',
-    hide: 'No mostrar durante 7 días', close: 'Entendido',
+    intro: 'En palabras sencillas:',
+    hide: 'No volver a mostrar hoy', close: 'Entendido',
     items: [
-      ['Las contraseñas ya no están en el código fuente', 'Revisar el código de GitHub ya no revela ninguna contraseña del equipo.', 'Por mucho que revisen el código, las contraseñas no están allí.'],
-      ['Autenticación real con Supabase', 'El servidor verifica las contraseñas, no el navegador.', 'La identidad la comprueba un servicio profesional.'],
-      ['Acceso anónimo desactivado', 'Sin iniciar sesión, las solicitudes reciben 401 No autorizado y no pueden leer, modificar ni eliminar asuntos.', 'No se puede saltar el inicio de sesión.'],
-      ['Permisos aplicados por la base de datos', 'Carlos y Héctor solo ven sus asuntos; Carol puede verlos todos.', 'Carol es la administradora y tiene control total.'],
-      ['Los asuntos no quedan guardados en la caché a largo plazo', 'Al cerrar sesión se borran los datos antiguos del navegador.', 'La información sensible no queda en un ordenador compartido.'],
-      ['Reglas de seguridad más estrictas', 'El sitio solo puede conectarse a bases de datos y scripts aprobados.', 'Se bloquean bases de datos falsas y scripts no confiables.'],
-      ['Las cuentas no cambian', 'La dirección, los correos y las contraseñas siguen iguales.', 'Se utiliza exactamente como antes.'],
+      ['La base de datos ya no guarda asuntos legibles', 'Ahora guarda texto cifrado que no puede leerse directamente.'],
+      ['Robar la base de datos no revela el contenido', 'Los nombres de clientes, títulos, notas y mensajes no se guardan en texto claro.'],
+      ['Cada asunto utiliza una clave diferente', 'Si una clave se ve comprometida, los demás asuntos siguen protegidos.'],
+      ['Solo las tres cuentas originales pueden descifrar', 'La dirección, los correos y las contraseñas no han cambiado.'],
+      ['Quien no inicia sesión no puede entrar en la base de datos', 'Las solicitudes anónimas se rechazan.'],
+      ['Cada miembro solo ve los asuntos en los que participa', 'Carlos y Héctor ven sus asuntos; Carol puede verlos todos.'],
+      ['Los miembros normales no pueden hacerse pasar por el responsable', 'Tampoco pueden cambiar en secreto la lista de miembros.'],
+      ['El historial de actividad no se puede reescribir libremente', 'Al eliminar definitivamente un asunto también se elimina su historial.'],
+      ['Actualizar o cerrar la página exige iniciar sesión otra vez', 'Así nadie puede usar un ordenador que había quedado con la sesión abierta.'],
+      ['El sitio ya no carga scripts en directo desde terceros', 'Esto reduce el riesgo de que un script externo sea sustituido por código malicioso.'],
     ],
   },
 };
@@ -2311,8 +2320,8 @@ function modalSecurityNotice() {
   const items = copy.items.map(item => `
     <li>
       <div class="security-notice-title">${esc(item[0])}</div>
-      <div>${esc(item[1])}</div>
-      <div class="security-notice-plain">${esc(item[2])}</div>
+      ${item[1] ? `<div>${esc(item[1])}</div>` : ''}
+      ${item[2] ? `<div class="security-notice-plain">${esc(item[2])}</div>` : ''}
     </li>`).join('');
   return modalFrame(
     copy.title,
@@ -2848,7 +2857,11 @@ document.addEventListener('click', ev => {
       state.modal = null; render(); break;
     case 'close-security-notice': {
       const hide = document.getElementById('security-notice-hide');
-      if (hide && hide.checked) save(KEY.securityNoticeUntil, Date.now() + 7 * 86400000);
+      if (hide && hide.checked) {
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+        save(KEY.securityNoticeUntil, endOfToday.getTime());
+      }
       state.modal = null;
       render();
       break;
