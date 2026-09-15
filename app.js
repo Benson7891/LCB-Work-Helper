@@ -482,12 +482,16 @@ const STR = {
   'modal.new.membersHint': ['只有勾进来的人能打开这条事项。制裁／涉美事项通常只勾 Carol 与 Carlos，换业务类型会自动改默认值。',
     'Only ticked people can open this matter. Sanctions / US matters usually tick only Carol and Carlos; changing the area resets the defaults.',
     'Solo quienes estén marcados pueden abrirlo. Los asuntos de sanciones o de EE. UU. suelen marcar solo a Carol y Carlos; al cambiar el área se restablecen.'],
-  'modal.file.title': ['添加文件链接', 'Add a file link', 'Añadir enlace de archivo'],
-  'modal.file.name': ['文件名', 'File name', 'Nombre del archivo'],
-  'modal.file.namePh': ['例如：土地权属摘要_v01.pdf', 'e.g. Land-title-memo_v01.pdf', 'p. ej. Memo-titulos_v01.pdf'],
-  'modal.file.url': ['链接', 'Link', 'Enlace'],
-  'modal.file.hint': ['文件本身放在 Google Drive 或飞书云盘，这里只保存链接。', 'The file itself stays in Google Drive or Lark Drive; only the link is saved here.', 'El archivo está en Google Drive o Lark; aquí solo se guarda el enlace.'],
-  'modal.file.submit': ['添加', 'Add', 'Añadir'],
+  'settings.sessions': ['登录设备', 'Signed-in devices', 'Dispositivos conectados'],
+  'settings.sessionsDesc': ['发现异常时，可立即退出包括本机在内的所有登录。', 'If something looks wrong, immediately sign out every session, including this one.', 'Si detectas algo extraño, cierra inmediatamente todas las sesiones, incluida esta.'],
+  'settings.logoutAll': ['退出所有设备', 'Sign out all devices', 'Cerrar sesión en todos'],
+  'modal.logoutAll.title': ['退出所有设备？', 'Sign out all devices?', '¿Cerrar sesión en todos los dispositivos?'],
+  'modal.logoutAll.body': ['所有设备上的登录都会失效，本机也要重新登录。账号和密码不会改变。', 'Every session will be revoked and this device must sign in again. Your account and password will not change.', 'Se revocarán todas las sesiones y tendrás que iniciar sesión de nuevo aquí. La cuenta y la contraseña no cambiarán.'],
+  'modal.logoutAll.confirm': ['确认全部退出', 'Sign out everywhere', 'Cerrar todas las sesiones'],
+  'modal.file.title': ['上传加密附件', 'Upload encrypted attachment', 'Subir archivo cifrado'],
+  'modal.file.name': ['选择文件', 'Choose file', 'Elegir archivo'],
+  'modal.file.hint': ['文件会先在本机加密，再上传到私有存储。最大 20 MB。', 'The file is encrypted on this device before upload to private storage. Maximum 20 MB.', 'El archivo se cifra en este dispositivo antes de subirlo al almacenamiento privado. Máximo 20 MB.'],
+  'modal.file.submit': ['加密并上传', 'Encrypt and upload', 'Cifrar y subir'],
   'modal.chat.title': ['事项聊天', 'Matter chat', 'Chat del asunto'],
   'modal.chat.to': ['发送给事项成员', 'Send to matter members', 'Enviar a los miembros del asunto'],
   'modal.chat.noRecipients': ['这条事项没有其他可接收消息的成员。', 'This matter has no other members who can receive a message.', 'Este asunto no tiene otros miembros que puedan recibir el mensaje.'],
@@ -597,7 +601,11 @@ const STR = {
   'toast.purged': ['已彻底删除', 'Permanently deleted', 'Eliminado definitivamente'],
   'toast.bulkPurged': ['已彻底删除 {n} 条事项', '{n} matters permanently deleted', 'Se eliminaron definitivamente {n} asuntos'],
   'toast.stepDone': ['已完成这一步，事项进入下一步', 'Step completed — the matter moved on', 'Paso completado: el asunto ha avanzado'],
-  'toast.fileAdded': ['已添加文件链接', 'File link added', 'Enlace añadido'],
+  'toast.fileAdded': ['加密附件已上传', 'Encrypted attachment uploaded', 'Archivo cifrado subido'],
+  'toast.fileDownloaded': ['附件已安全解密', 'Attachment decrypted securely', 'Archivo descifrado de forma segura'],
+  'toast.fileTooLarge': ['文件不能超过 20 MB', 'File must be 20 MB or smaller', 'El archivo no puede superar 20 MB'],
+  'toast.fileFailed': ['附件操作失败，请重试', 'Attachment operation failed. Try again.', 'Error con el archivo. Inténtalo de nuevo.'],
+  'toast.logoutAllFailed': ['无法退出其他设备，请重试', 'Could not sign out other devices. Try again.', 'No se pudieron cerrar las otras sesiones. Inténtalo de nuevo.'],
   'toast.chatSent': ['消息已发送', 'Message sent', 'Mensaje enviado'],
   'toast.needMessage': ['请输入消息', 'Please enter a message', 'Escribe un mensaje'],
   'toast.needChatRecipient': ['请至少勾选一位事项成员', 'Select at least one matter member', 'Selecciona al menos un miembro del asunto'],
@@ -614,7 +622,7 @@ const STR = {
   'toast.needNext': ['请填写下一步做什么', 'Please fill in the next step', 'Indica el próximo paso'],
   'toast.needDue': ['请填写截止日期', 'Please set a due date', 'Indica la fecha límite'],
   'toast.needStatus': ['请选择状态', 'Please choose a status', 'Elige un estado'],
-  'toast.needFileName': ['请填写文件名', 'Please enter a file name', 'Indica el nombre del archivo'],
+  'toast.needFileName': ['请选择文件', 'Please choose a file', 'Elige un archivo'],
   'toast.onlyOwnerDelete': ['只有项目负责人 {name} 才能删除事项', 'Only the matter owner, {name}, can delete it', 'Solo el responsable, {name}, puede eliminarlo'],
   'toast.onlyOwnerEdit': ['只有事项负责人 {name} 才能修改事项', 'Only the matter owner, {name}, can edit this matter', 'Solo el responsable, {name}, puede modificar este asunto'],
   'toast.importStatusInvalid': ['事项“{title}”的“状态”填写错误，请修改！', 'The “Status” of matter “{title}” is invalid. Please correct it.', 'El “Estado” del asunto «{title}» es incorrecto. Corríjalo.'],
@@ -1042,6 +1050,35 @@ function sbFetch(path, opts) {
   return fetch(SUPABASE.url + '/rest/v1' + path, Object.assign({}, opts || {}, { headers }));
 }
 
+function storageFetch(path, opts) {
+  const token = authSession && authSession.access_token;
+  const headers = Object.assign({
+    apikey: SUPABASE.key,
+    Authorization: 'Bearer ' + (token || SUPABASE.key),
+  }, (opts && opts.headers) || {});
+  return fetch(SUPABASE.url + '/storage/v1' + path, Object.assign({}, opts || {}, { headers }));
+}
+
+async function signOutEverywhere() {
+  if (sync.dirty) await pushRemote();
+  const res = await fetch(SUPABASE.url + '/auth/v1/logout?scope=global', {
+    method:'POST', headers:{ apikey:SUPABASE.key, Authorization:'Bearer ' + authSession.access_token },
+  });
+  if (!res.ok) throw new Error('logout-http-' + res.status);
+  session = null;
+  authSession = null;
+  if (globalThis.LCBCrypto) LCBCrypto.lock();
+  saveSessionValue(KEY.auth, null);
+  clearPrivateCache();
+  state.bulkSelected.clear();
+  state.trashSelected.clear();
+  save(KEY.session, null);
+  state.modal = null;
+  state.loginError = '';
+  go('#/');
+  render();
+}
+
 async function signIn(email, password) {
   const res = await fetch(SUPABASE.url + '/auth/v1/token?grant_type=password', {
     method: 'POST', headers: { apikey: SUPABASE.key, 'Content-Type': 'application/json' },
@@ -1169,7 +1206,8 @@ async function pullRemote(opts) {
     matters = nextMatters;
     const activeUser = currentUser();
     shouldEncryptPlaintext = !!(globalThis.LCBCrypto && LCBCrypto.state.ready && activeUser &&
-      mRows.some((row, i) => row.data && row.data.encrypted !== 'lcb-e2ee-v1' &&
+      mRows.some((row, i) => row.data &&
+        (row.data.encrypted !== 'lcb-e2ee-v1' || Object.prototype.hasOwnProperty.call(row.data, 'no')) &&
         (activeUser.admin || nextMatters[i].owner === activeUser.id)));
     deliverSystemNotifications(nextLogs);
     logs = nextLogs;
@@ -1222,7 +1260,7 @@ async function pushRemote() {
         // 新事项先建立不含敏感正文的访问空壳，密钥成功写入后才上传密文。
         const shells = matters.map(m => ({
           id:String(m.id),
-          data:{ id:m.id, no:m.no, owner:m.owner, team:m.team || [], deletedAt:m.deletedAt || null, encrypted:'lcb-e2ee-pending' },
+          data:{ id:m.id, owner:m.owner, team:m.team || [], deletedAt:m.deletedAt || null, encrypted:'lcb-e2ee-pending' },
           updated_at:new Date().toISOString(),
         }));
         const shellResult = await sbFetch('/matters', {
@@ -2123,7 +2161,7 @@ function viewMatter(id) {
             ${(m.files || []).length ? m.files.map((f, i) => `
               <div class="file-item">
                 <span>📎</span>
-                <a class="nm" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(L(f.name))}</a>
+                ${f.encrypted ? `<button class="btn btn-ghost nm" type="button" data-action="download-encrypted-file" data-id="${m.id}" data-idx="${i}">${esc(L(f.name))}</button>` : `<a class="nm" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(L(f.name))}</a>`}
                 <button class="btn btn-sm btn-ghost" type="button" data-action="remove-file" data-id="${m.id}" data-idx="${i}">${esc(t('common.remove'))}</button>
               </div>`).join('') : `<div class="small muted">${esc(t('detail.files.empty'))}</div>`}
           </div>
@@ -2245,6 +2283,11 @@ function viewSettings() {
           <div class="kv"><span class="k">${esc(t('settings.numberFormat'))}</span><span class="v">${esc(t('settings.numberFormatValue'))}</span></div>
           <div class="kv"><span class="k">${esc(t('settings.numberExample'))}</span><span class="v">2026-041</span></div>
           <div class="kv"><span class="k">${esc(t('settings.numberNext'))}</span><span class="v">2026-${String(seq + 1).padStart(3, '0')}</span></div>
+        </div>
+        <div class="card card-pad">
+          <div class="section-title">${esc(t('settings.sessions'))}</div>
+          <div class="hint" style="margin-bottom:12px">${esc(t('settings.sessionsDesc'))}</div>
+          <button class="btn btn-danger" type="button" data-action="logout-all-devices">${esc(t('settings.logoutAll'))}</button>
         </div>
       </div>
     </div>`;
@@ -2399,9 +2442,7 @@ function modalFile(mo) {
     t('modal.file.title'),
     `<form id="file-form" data-action="confirm-add-file" data-id="${m.id}">
        <div class="field"><label class="req">${esc(t('modal.file.name'))}</label>
-         <input name="fileName" placeholder="${esc(t('modal.file.namePh'))}" autocomplete="off"></div>
-       <div class="field"><label>${esc(t('modal.file.url'))}</label>
-         <input name="fileUrl" value="https://drive.google.com/" autocomplete="off"></div>
+         <input type="file" name="fileBlob" required></div>
        <div class="hint">${esc(t('modal.file.hint'))}</div>
      </form>`,
     `<button class="btn" type="button" data-action="close-modal">${esc(t('modal.cancel'))}</button>
@@ -2784,7 +2825,7 @@ function exportCSV(onlyId) {
   toast(t('toast.exported'));
 }
 
-document.addEventListener('click', ev => {
+document.addEventListener('click', async ev => {
   // 点遮罩空白处关闭弹窗
   const mask = ev.target.closest('[data-mask]');
   if (mask && ev.target === mask) {
@@ -2819,6 +2860,17 @@ document.addEventListener('click', ev => {
       go('#/');
       render();
       toast(t('toast.loggedOut'));
+      break;
+    case 'logout-all-devices':
+      state.modal = {
+        type:'confirm', titleKey:'modal.logoutAll.title', body:t('modal.logoutAll.body'),
+        confirmKey:'modal.logoutAll.confirm', action:'confirm-logout-all-devices', danger:true,
+      };
+      render();
+      break;
+    case 'confirm-logout-all-devices':
+      try { await signOutEverywhere(); toast(t('toast.loggedOut')); }
+      catch (e) { state.modal = null; render(); toast(t('toast.logoutAllFailed')); }
       break;
     case 'set-lang':
       setLang(el.getAttribute('data-lang'));
@@ -2942,10 +2994,31 @@ document.addEventListener('click', ev => {
       render();
       break;
     }
+    case 'download-encrypted-file': {
+      const m = matterById(el.getAttribute('data-id'));
+      const f = m && (m.files || [])[Number(el.getAttribute('data-idx'))];
+      if (!m || !f || !f.storagePath || !canSee(currentUser(), m)) break;
+      try {
+        const res = await storageFetch('/object/authenticated/lcb-encrypted-files/' + f.storagePath);
+        if (!res.ok) throw new Error('download-http-' + res.status);
+        const sealed = JSON.parse(await res.text());
+        const clear = await LCBCrypto.decryptFile(m.id, sealed, sbFetch);
+        const blob = new Blob([clear], { type:f.type || 'application/octet-stream' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = f.name; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        toast(t('toast.fileDownloaded'));
+      } catch (e) { toast(t('toast.fileFailed')); }
+      break;
+    }
     case 'remove-file': {
       const id = el.getAttribute('data-id'); const i = Number(el.getAttribute('data-idx'));
       const m = matterById(id);
       const f = m.files[i];
+      if (f && f.storagePath) {
+        const removed = await storageFetch('/object/lcb-encrypted-files/' + f.storagePath, { method:'DELETE' });
+        if (!removed.ok) { toast(t('toast.fileFailed')); break; }
+      }
       m.files.splice(i, 1);
       addLogKey(id, currentUser().id, 'detail.entry.fileRemove', { name: f.name }, {
         key: 'inbox.fileRemove', vars: noticeVars(m, currentUser().id, { name: f.name }),
@@ -3365,20 +3438,28 @@ document.addEventListener('submit', async ev => {
   }
   if (action === 'confirm-add-file') {
     const id = form.getAttribute('data-id');
-    const name = (form.fileName.value || '').trim();
-    const url = (form.fileUrl.value || '').trim();
-    if (!name) { toast(t('toast.needFileName')); return; }
+    const file = form.fileBlob && form.fileBlob.files && form.fileBlob.files[0];
+    if (!file) { toast(t('toast.needFileName')); return; }
+    if (file.size > 20 * 1024 * 1024) { toast(t('toast.fileTooLarge')); return; }
     const m = matterById(id);
     if (!m) return;
-    m.files = m.files || [];
-    m.files.push({ name, url: url || '#' });
-    addLogKey(id, currentUser().id, 'detail.entry.fileAdd', { name }, {
-      key: 'inbox.fileAdd', vars: noticeVars(m, currentUser().id, { name }),
-    });
-    commit();
-    state.modal = null;
-    render();
-    toast(t('toast.fileAdded'));
+    try {
+      const sealed = await LCBCrypto.encryptFile(id, await file.arrayBuffer(), sbFetch);
+      const storagePath = encodeURIComponent(String(id)) + '/' + crypto.randomUUID() + '.lcb';
+      const uploaded = await storageFetch('/object/lcb-encrypted-files/' + storagePath, {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'x-upsert':'false' }, body:JSON.stringify(sealed),
+      });
+      if (!uploaded.ok) throw new Error('upload-http-' + uploaded.status);
+      m.files = m.files || [];
+      m.files.push({ name:file.name, type:file.type, size:file.size, storagePath, encrypted:'lcb-e2ee-v1' });
+      addLogKey(id, currentUser().id, 'detail.entry.fileAdd', { name:file.name }, {
+        key:'inbox.fileAdd', vars:noticeVars(m, currentUser().id, { name:file.name }),
+      });
+      commit();
+      state.modal = null;
+      render();
+      toast(t('toast.fileAdded'));
+    } catch (e) { toast(t('toast.fileFailed')); }
   }
   if (action === 'confirm-complete-step') {
     const ok = completeStep(form.getAttribute('data-id'), readForm(form));

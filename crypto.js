@@ -160,7 +160,7 @@
       matterRecipients.set(id, recipientFingerprint);
     }
     return {
-      id:matter.id, no:matter.no, owner:matter.owner, team:matter.team || [], deletedAt:matter.deletedAt || null,
+      id:matter.id, owner:matter.owner, team:matter.team || [], deletedAt:matter.deletedAt || null,
       encrypted:'lcb-e2ee-v1', sealed:await sealJson(key, matter),
     };
   }
@@ -208,6 +208,12 @@
     sealedLogCache.set(String(data.id), { fingerprint:JSON.stringify(logPayload(payload)), sealed:data.sealed });
     return payload;
   }
+  async function encryptFile(matterId, bytes, request) {
+    return encryptBytes(await loadMatterKey(matterId, request), bytes);
+  }
+  async function decryptFile(matterId, sealed, request) {
+    return decryptBytes(await loadMatterKey(matterId, request), sealed);
+  }
   function lock() {
     state.userId = ''; state.privateKey = null; state.publicKey = null; state.ready = false;
     matterKeys.clear(); matterRecipients.clear(); sealedLogCache.clear(); publicDirectory = null; pendingKeyRows = []; pendingRecipientSets.clear();
@@ -215,6 +221,6 @@
 
   globalThis.LCBCrypto = {
     state, initialize, lock, generateMatterKey, wrapMatterKey, unwrapMatterKey, sealJson, openJson,
-    prepareMatter, openMatter, flushMatterKeys, prepareLog, openLog,
+    prepareMatter, openMatter, flushMatterKeys, prepareLog, openLog, encryptFile, decryptFile,
   };
 })();
