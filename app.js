@@ -173,6 +173,8 @@ const STR = {
   'sync.loading': ['同步中…', 'Syncing…', 'Sincronizando…'],
   'sync.error': ['未同步', 'Not synced', 'Sin sincronizar'],
   'sync.failedClick': ['未同步，点这里！', 'Not synced — click here!', 'Sin sincronizar: ¡haz clic aquí!'],
+  'sync.errorModalTitle': ['发生错误！', 'An error occurred!', '¡Se produjo un error!'],
+  'sync.errorModalSend': ['请将上面的文字发送给 Benson（yanyi13411696203@163.com），谢谢', 'Please send the text above to Benson (yanyi13411696203@163.com). Thank you.', 'Envía el texto anterior a Benson (yanyi13411696203@163.com). Gracias.'],
   'sync.offline': ['离线：改动只留在这台设备', 'Offline: changes stay on this device', 'Sin conexión: los cambios quedan aquí'],
   'sync.tablesMissing': ['数据表还没建好，请在 Supabase 里执行建表脚本', 'The tables are missing — run the setup SQL in Supabase', 'Faltan las tablas: ejecuta el SQL de configuración en Supabase'],
   'sync.tipOk': ['三台设备共用同一份数据 · 最近同步 {time} · 点一下立刻刷新',
@@ -1148,6 +1150,11 @@ function queueSyncRetry(kind) {
   if (sync.retryCount >= SYNC_RETRY_LIMIT) {
     sync.status = 'error';
     sync.retryTimer = null;
+    state.modal = {
+      type:'notice',
+      titleKey:'sync.errorModalTitle',
+      body:`<div style="padding:10px 12px;border:1px solid var(--line);background:var(--bg);word-break:break-word">${esc(sync.error || 'Unknown error')}</div><div style="margin-top:14px">${esc(t('sync.errorModalSend'))}</div>`,
+    };
     return false;
   }
   sync.status = 'loading';
@@ -1725,7 +1732,7 @@ function syncBadge() {
   if (st === 'error') {
     const msg = sync.error === 'tables-missing' ? t('sync.tablesMissing') : sync.error;
     return `<button class="sync-pill error" type="button" data-action="sync-now"
-      title="${esc(t('sync.tipError', { msg }))}">⚠ ${esc(t('sync.failedClick'))}<span style="display:block;font-size:10px;font-weight:500;margin-top:2px">${esc(msg)}</span></button>`;
+      title="${esc(t('sync.tipError', { msg }))}">⚠ ${esc(t('sync.failedClick'))}</button>`;
   }
   const time = sync.lastAt ? fmtStamp(sync.lastAt).slice(11) : '—';
   return `<button class="sync-pill ok" type="button" data-action="sync-now"
