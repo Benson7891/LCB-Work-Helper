@@ -57,3 +57,57 @@ using (public.lcb_team_id() is not null) with check (public.lcb_team_id() is not
 
 revoke all on public.matters, public.logs, public.meta from anon;
 grant select, insert, update, delete on public.matters, public.logs, public.meta to authenticated;
+
+-- Defense in depth: RLS decides which rows are reachable; these triggers protect
+-- security-sensitive fields even when a signed-in user bypasses the web UI.
+create or replace function public.lcb_guard_matter_write() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare actor text := public.lcb_team_id();
+begin
+  if actor is null then raise exception 'unknown team member'; end if;
+  if actor = 'carol' then return new; end if;
+
+  if tg_op = 'INSERT' then
+    if new.data ->> 'owner' <> actor then raise exception 'owner must be current user'; end if;
+    if not coalesce(new.data -> 'team', '[]'::jsonb) ? actor then raise exception 'creator must remain a member'; end if;
+    return new;
+  end if;
+
+  if new.id <> old.id or new.data ->> 'owner' <> old.data ->> 'owner' or new.data ->> 'no' <> old.data ->> 'no' then
+    raise exception 'protected matter identity cannot be changed';
+  end if;
+  if old.data ->> 'owner' <> actor and coalesce(new.data -> 'team', '[]'::jsonb) <> coalesce(old.data -> 'team', '[]'::jsonb) then
+    raise exception 'only the matter owner can change members';
+  end if;
+  if not coalesce(new.data -> 'team', '[]'::jsonb) ? (old.data ->> 'owner') then
+    raise exception 'matter owner must remain a member';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists lcb_guard_matter_write on public.matters;
+create trigger lcb_guard_matter_write before insert or update on public.matters
+for each row execute function public.lcb_guard_matter_write();
+
+create or replace function public.lcb_guard_log_write() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare actor text := public.lcb_team_id();
+begin
+  if actor is null then raise exception 'unknown team member'; end if;
+  if tg_op = 'INSERT' then
+    if new.data ->> 'by' <> actor then raise exception 'log author mismatch'; end if;
+    return new;
+  end if;
+  if new.id <> old.id or new.matter_id <> old.matter_id or
+     (new.data - 'readBy' - 'deletedFor') <> (old.data - 'readBy' - 'deletedFor') then
+    raise exception 'activity history is append-only';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists lcb_guard_log_write on public.logs;
+create trigger lcb_guard_log_write before insert or update on public.logs
+for each row execute function public.lcb_guard_log_write();
+
+revoke execute on function public.lcb_guard_matter_write() from public;
+revoke execute on function public.lcb_guard_log_write() from public;

@@ -29,6 +29,7 @@ const SUPABASE = {
 };
 const REMOTE_ENABLED = !!(SUPABASE.url && SUPABASE.key) && typeof fetch === 'function';
 const SYNC_EVERY_MS = 15000;
+const IDLE_LOGOUT_MS = 30 * 60 * 1000;
 const sync = {
   status: REMOTE_ENABLED ? 'loading' : 'off',  // loading | ok | error | off
   lastAt: 0,
@@ -749,6 +750,18 @@ function load(key, fallback) {
 function save(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* 忽略隐私模式下的写入失败 */ }
 }
+function loadSessionValue(key, fallback) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw === null ? fallback : JSON.parse(raw);
+  } catch (e) { return fallback; }
+}
+function saveSessionValue(key, value) {
+  try {
+    if (value == null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, JSON.stringify(value));
+  } catch (e) { /* ignore */ }
+}
 
 // 有些浏览器不允许 file:// 页面保存数据（Safari 常见），这时给出提示
 const CAN_PERSIST = (() => {
@@ -971,7 +984,9 @@ function seedLogs() {
 
 /* ------------------------------ 运行时状态 ------------------------------ */
 
-let authSession = load(KEY.auth, null);
+// 登录令牌只保留在当前标签页；关闭标签页后自动消失。
+try { localStorage.removeItem(KEY.auth); } catch (e) { /* clear legacy token */ }
+let authSession = loadSessionValue(KEY.auth, null);
 let matters = REMOTE_ENABLED ? [] : (load(KEY.matters, null) || []);
 let logs = REMOTE_ENABLED ? [] : (load(KEY.logs, null) || []);
 let seq = REMOTE_ENABLED ? 0 : load(KEY.seq, 0);
@@ -1029,7 +1044,7 @@ async function signIn(email, password) {
   authSession = { access_token: data.access_token, refresh_token: data.refresh_token,
     expires_at: Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600),
     email: data.user && data.user.email };
-  save(KEY.auth, authSession);
+  saveSessionValue(KEY.auth, authSession);
 }
 
 async function refreshAuth() {
@@ -1044,7 +1059,7 @@ async function refreshAuth() {
   authSession = { access_token: data.access_token, refresh_token: data.refresh_token,
     expires_at: Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600),
     email: data.user && data.user.email };
-  save(KEY.auth, authSession);
+  saveSessionValue(KEY.auth, authSession);
   return true;
 }
 
@@ -1053,6 +1068,22 @@ function clearPrivateCache() {
     try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
   });
   matters = []; logs = []; seq = 0;
+}
+
+let lastUserActivityAt = Date.now();
+async function idleLogout() {
+  if (!authSession || Date.now() - lastUserActivityAt < IDLE_LOGOUT_MS) return;
+  if (sync.dirty) await pushRemote();
+  session = null;
+  authSession = null;
+  saveSessionValue(KEY.auth, null);
+  clearPrivateCache();
+  state.bulkSelected.clear();
+  state.trashSelected.clear();
+  state.modal = null;
+  go('#/');
+  render();
+  toast(t('toast.loggedOut'));
 }
 
 const UPSERT = { Prefer: 'resolution=merge-duplicates,return=minimal' };
@@ -2735,7 +2766,7 @@ document.addEventListener('click', ev => {
     case 'confirm-logout':
       session = null;
       authSession = null;
-      save(KEY.auth, null);
+      saveSessionValue(KEY.auth, null);
       clearPrivateCache();
       state.bulkSelected.clear();
       state.trashSelected.clear();
@@ -3345,11 +3376,15 @@ if (REMOTE_ENABLED) {
   clearPrivateCache();
   refreshAuth().then(ok => {
     if (ok) pullRemote({ initial: true });
-    else { authSession = null; session = null; save(KEY.auth, null); render(); }
+    else { authSession = null; session = null; saveSessionValue(KEY.auth, null); render(); }
   });
   setInterval(() => {
     if (!sync.dirty && sync.status !== 'error') pullRemote({ background: true });
   }, SYNC_EVERY_MS);
+  setInterval(idleLogout, 60000);
+  ['pointerdown', 'keydown', 'touchstart'].forEach(type => {
+    document.addEventListener(type, () => { lastUserActivityAt = Date.now(); }, { passive: true });
+  });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !sync.dirty) pullRemote({ background: true });
   });
