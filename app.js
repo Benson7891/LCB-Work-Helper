@@ -1128,6 +1128,7 @@ function userIsInteracting() {
 // 把远端的事整份拉下来（正常情况下每 15 秒一次）
 async function pullRemote(opts) {
   const background = !!(opts && opts.background);
+  let shouldEncryptPlaintext = false;
   if (background && userIsInteracting()) return;
   if (!REMOTE_ENABLED || sync.busy || !authSession) return;
   if (sync.dirty) return;              // 本地还有没推上去的改动，先别覆盖
@@ -1157,6 +1158,10 @@ async function pullRemote(opts) {
     // 请求发出后用户可能刚开始输入；这次结果留到下一轮再取。
     if (background && userIsInteracting()) { sync.busy = false; return; }
     matters = nextMatters;
+    const activeUser = currentUser();
+    shouldEncryptPlaintext = !!(globalThis.LCBCrypto && LCBCrypto.state.ready && activeUser &&
+      mRows.some((row, i) => row.data && row.data.encrypted !== 'lcb-e2ee-v1' &&
+        (activeUser.admin || nextMatters[i].owner === activeUser.id)));
     deliverSystemNotifications(nextLogs);
     logs = nextLogs;
     seq = nextSeq;
@@ -1172,6 +1177,7 @@ async function pullRemote(opts) {
     sync.error = '';
     if (background && !changed) {
       syncReady = true; sync.busy = false;
+      if (shouldEncryptPlaintext) commit();
       if (materializeRecurringMatters()) commit();
       deliverDeadlineReminders();
       return;
@@ -1186,6 +1192,7 @@ async function pullRemote(opts) {
   }
   syncReady = true;
   sync.busy = false;
+  if (shouldEncryptPlaintext) commit();
   if (materializeRecurringMatters()) commit();
   deliverDeadlineReminders();
   if (background && userIsInteracting()) return;

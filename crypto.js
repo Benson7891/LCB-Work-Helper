@@ -134,14 +134,16 @@
     const id = String(matter.id);
     const recipients = [...new Set([...(matter.team || []), matter.owner, 'carol'].filter(Boolean))].sort();
     const recipientFingerprint = recipients.join(',');
+    const canManageKeys = matter.owner === state.userId || state.userId === 'carol';
     let key = matterKeys.get(id);
     if (!key) {
       const rows = await requestJson(request, `/lcb_matter_keys?select=wrapped_key&matter_id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(state.userId)}`);
       if (rows.length) key = await unwrapMatterKey(rows[0].wrapped_key);
-      else key = await generateMatterKey();
+      else if (canManageKeys) key = await generateMatterKey();
+      else return matter;
       matterKeys.set(id, key);
     }
-    if (matter.owner === state.userId || state.userId === 'carol') {
+    if (canManageKeys) {
       const previousRecipients = matterRecipients.get(id);
       if (previousRecipients && previousRecipients !== recipientFingerprint) {
         key = await generateMatterKey();
