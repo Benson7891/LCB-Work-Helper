@@ -1019,6 +1019,20 @@ const state = {
   calendarOffset: 0,
   modal: Number(load(KEY.securityNoticeUntil, 0)) > Date.now() ? null : { type: 'security-notice' },
 };
+let lastSystemError = { message:'', at:0 };
+function showSystemError(error) {
+  const message = String((error && (error.message || error.reason)) || error || 'Unknown error');
+  if (message === 'bad-credentials') return;
+  const now = Date.now();
+  if (lastSystemError.message === message && now - lastSystemError.at < 2000) return;
+  lastSystemError = { message, at:now };
+  state.modal = {
+    type:'notice',
+    titleKey:'sync.errorModalTitle',
+    body:`<div style="padding:10px 12px;border:1px solid var(--line);background:var(--bg);word-break:break-word">${esc(message)}</div><div style="margin-top:14px">${esc(t('sync.errorModalSend'))}</div>`,
+  };
+  render();
+}
 const savedSystemSeen = load(KEY.systemSeen, null);
 const systemNotice = {
   seen: new Set(Array.isArray(savedSystemSeen) ? savedSystemSeen : []),
@@ -1150,11 +1164,7 @@ function queueSyncRetry(kind) {
   if (sync.retryCount >= SYNC_RETRY_LIMIT) {
     sync.status = 'error';
     sync.retryTimer = null;
-    state.modal = {
-      type:'notice',
-      titleKey:'sync.errorModalTitle',
-      body:`<div style="padding:10px 12px;border:1px solid var(--line);background:var(--bg);word-break:break-word">${esc(sync.error || 'Unknown error')}</div><div style="margin-top:14px">${esc(t('sync.errorModalSend'))}</div>`,
-    };
+    showSystemError(sync.error);
     return false;
   }
   sync.status = 'loading';
@@ -2877,7 +2887,7 @@ document.addEventListener('click', async ev => {
       break;
     case 'confirm-logout-all-devices':
       try { await signOutEverywhere(); toast(t('toast.loggedOut')); }
-      catch (e) { state.modal = null; render(); toast(t('toast.logoutAllFailed')); }
+      catch (e) { showSystemError(e); }
       break;
     case 'set-lang':
       setLang(el.getAttribute('data-lang'));
@@ -3015,7 +3025,7 @@ document.addEventListener('click', async ev => {
         a.href = URL.createObjectURL(blob); a.download = f.name; a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
         toast(t('toast.fileDownloaded'));
-      } catch (e) { toast(t('toast.fileFailed')); }
+      } catch (e) { showSystemError(e); }
       break;
     }
     case 'remove-file': {
@@ -3024,7 +3034,7 @@ document.addEventListener('click', async ev => {
       const f = m.files[i];
       if (f && f.storagePath) {
         const removed = await storageFetch('/object/lcb-encrypted-files/' + f.storagePath, { method:'DELETE' });
-        if (!removed.ok) { toast(t('toast.fileFailed')); break; }
+        if (!removed.ok) { showSystemError(new Error('file-delete-http-' + removed.status)); break; }
       }
       m.files.splice(i, 1);
       addLogKey(id, currentUser().id, 'detail.entry.fileRemove', { name: f.name }, {
@@ -3466,7 +3476,7 @@ document.addEventListener('submit', async ev => {
       state.modal = null;
       render();
       toast(t('toast.fileAdded'));
-    } catch (e) { toast(t('toast.fileFailed')); }
+    } catch (e) { showSystemError(e); }
   }
   if (action === 'confirm-complete-step') {
     const ok = completeStep(form.getAttribute('data-id'), readForm(form));
@@ -3491,6 +3501,11 @@ document.addEventListener('submit', async ev => {
 });
 
 window.addEventListener('hashchange', render);
+window.addEventListener('error', event => showSystemError(event.error || event.message));
+window.addEventListener('unhandledrejection', event => {
+  event.preventDefault();
+  showSystemError(event.reason);
+});
 
 // 按 Esc 关掉弹窗
 document.addEventListener('keydown', ev => {
