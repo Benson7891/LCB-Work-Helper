@@ -95,6 +95,41 @@ const SECURITY_NOTICE = {
   },
 };
 
+const FEATURE_COPY = {
+  zh: {
+    calendar:'日历', followups:'客户跟进', team:'团队负荷', reminders:'自动提醒', remindersEmpty:'目前没有临期或逾期提醒。',
+    overdue:'已逾期', dueSoon:'即将到期', staleClient:'客户久未联系', waitingClient:'等待客户', days:'天', today:'今天',
+    quick:'快速新建', quickSubmit:'立即创建', handoff:'工作交接', handoffPending:'等待 {name} 接收', handoffAccept:'确认接收', handoffAccepted:'已接收',
+    workloadOpen:'进行中', workloadRed:'紧急', workloadOverdue:'逾期', workloadWaiting:'待本人推进',
+    previous:'上个月', nextMonth:'下个月', noCalendar:'本月没有截止事项',
+    recurrence:'重复事项', recurrenceNone:'不重复', recurrenceWeekly:'每周', recurrenceMonthly:'每月', recurrenceUntil:'重复至（可不填）',
+    followupEmpty:'目前没有需要跟进的客户。', lastContact:'最后联系', contactNow:'更新为今天已联系',
+  },
+  en: {
+    calendar:'Calendar', followups:'Client follow-up', team:'Team workload', reminders:'Automatic reminders', remindersEmpty:'No upcoming or overdue reminders.',
+    overdue:'Overdue', dueSoon:'Due soon', staleClient:'No recent client contact', waitingClient:'Waiting on client', days:'days', today:'Today',
+    quick:'Quick add', quickSubmit:'Create now', handoff:'Handoff', handoffPending:'Waiting for {name} to accept', handoffAccept:'Accept handoff', handoffAccepted:'Accepted',
+    workloadOpen:'Open', workloadRed:'Urgent', workloadOverdue:'Overdue', workloadWaiting:'Waiting on member',
+    previous:'Previous month', nextMonth:'Next month', noCalendar:'No matters due this month',
+    recurrence:'Recurring matter', recurrenceNone:'Does not repeat', recurrenceWeekly:'Weekly', recurrenceMonthly:'Monthly', recurrenceUntil:'Repeat until (optional)',
+    followupEmpty:'No clients currently need follow-up.', lastContact:'Last contact', contactNow:'Mark contacted today',
+  },
+  es: {
+    calendar:'Calendario', followups:'Seguimiento', team:'Carga del equipo', reminders:'Recordatorios automáticos', remindersEmpty:'No hay recordatorios próximos ni vencidos.',
+    overdue:'Vencido', dueSoon:'Vence pronto', staleClient:'Sin contacto reciente', waitingClient:'Esperando al cliente', days:'días', today:'Hoy',
+    quick:'Creación rápida', quickSubmit:'Crear ahora', handoff:'Entrega', handoffPending:'Esperando que {name} acepte', handoffAccept:'Aceptar entrega', handoffAccepted:'Aceptado',
+    workloadOpen:'Abiertos', workloadRed:'Urgentes', workloadOverdue:'Vencidos', workloadWaiting:'Pendientes del miembro',
+    previous:'Mes anterior', nextMonth:'Mes siguiente', noCalendar:'No hay asuntos con vencimiento este mes',
+    recurrence:'Asunto recurrente', recurrenceNone:'No se repite', recurrenceWeekly:'Semanal', recurrenceMonthly:'Mensual', recurrenceUntil:'Repetir hasta (opcional)',
+    followupEmpty:'No hay clientes que requieran seguimiento.', lastContact:'Último contacto', contactNow:'Marcar contacto hoy',
+  },
+};
+function ft(key, vars) {
+  let out = ((FEATURE_COPY[lang] || FEATURE_COPY.zh)[key] || key);
+  Object.entries(vars || {}).forEach(([k,v]) => { out = out.replaceAll('{' + k + '}', v); });
+  return out;
+}
+
 /* 每条： [简体中文, English, Español] */
 const STR = {
   'app.title': ['LCB Matter 总表', 'LCB Matter Board', 'Tablero de Asuntos LCB'],
@@ -948,6 +983,7 @@ const state = {
   bulkSelected: new Set(),
   trashSelected: new Set(),
   loginError: '',
+  calendarOffset: 0,
   modal: Number(load(KEY.securityNoticeUntil, 0)) > Date.now() ? null : { type: 'security-notice' },
 };
 const savedSystemSeen = load(KEY.systemSeen, null);
@@ -1097,7 +1133,12 @@ async function pullRemote(opts) {
     resetSyncRetries();
     sync.lastAt = Date.now();
     sync.error = '';
-    if (background && !changed) { syncReady = true; sync.busy = false; return; }
+    if (background && !changed) {
+      syncReady = true; sync.busy = false;
+      if (materializeRecurringMatters()) commit();
+      deliverDeadlineReminders();
+      return;
+    }
   } catch (e) {
     sync.error = String((e && e.message) || e);
     sync.busy = false;
@@ -1108,6 +1149,8 @@ async function pullRemote(opts) {
   }
   syncReady = true;
   sync.busy = false;
+  if (materializeRecurringMatters()) commit();
+  deliverDeadlineReminders();
   if (background && userIsInteracting()) return;
   render();
 }
@@ -1200,7 +1243,7 @@ function lastStep(m) {
   const list = stepsOf(m);
   return list.length ? list[0] : null;
 }
-const MATTER_EDIT_FIELDS = ['client', 'title', 'area', 'stage', 'owner', 'nextOwner', 'status', 'due', 'waiting', 'lastContact', 'next', 'reason', 'notes', 'team'];
+const MATTER_EDIT_FIELDS = ['client', 'title', 'area', 'stage', 'owner', 'nextOwner', 'status', 'due', 'waiting', 'lastContact', 'next', 'reason', 'notes', 'team', 'recurrence', 'recurrenceUntil', 'recurrenceNext', 'handoff'];
 function cloneData(value) { return JSON.parse(JSON.stringify(value)); }
 function matterEditSnapshot(m) {
   const snapshot = {};
@@ -1424,6 +1467,77 @@ function sorted(list) {
   });
 }
 
+function reminderItems(user) {
+  return sorted(visibleMatters(user).filter(m => {
+    const due = daysFromToday(m.due);
+    const contact = m.lastContact ? -daysFromToday(m.lastContact) : 999;
+    return (due !== null && due <= 3) || m.waiting === 'client' || contact >= 7;
+  })).map(m => {
+    const due = daysFromToday(m.due);
+    const contact = m.lastContact ? -daysFromToday(m.lastContact) : 999;
+    let kind = due < 0 ? ft('overdue') : (due <= 3 ? ft('dueSoon') : ft('waitingClient'));
+    if (contact >= 7) kind = ft('staleClient');
+    return { matter:m, kind, days:due };
+  });
+}
+
+function followupItems(user) {
+  return reminderItems(user).filter(x => x.matter.waiting === 'client' || x.kind === ft('staleClient'));
+}
+
+function advanceRecurringDate(value, recurrence) {
+  const d = parseISO(value);
+  if (recurrence === 'weekly') d.setDate(d.getDate() + 7);
+  else if (recurrence === 'monthly') {
+    const day = d.getDate();
+    d.setDate(1); d.setMonth(d.getMonth() + 1);
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(day, monthEnd));
+  }
+  return iso(d);
+}
+
+function materializeRecurringMatters() {
+  const u = currentUser();
+  if (!u) return false;
+  let changed = false;
+  matters.filter(m => !m.deletedAt && ['weekly','monthly'].includes(m.recurrence) && (u.admin || m.owner === u.id)).forEach(template => {
+    let next = template.recurrenceNext || advanceRecurringDate(template.due, template.recurrence);
+    let guard = 0;
+    while (next <= iso(today()) && guard++ < 12 && (!template.recurrenceUntil || next <= template.recurrenceUntil)) {
+      const occurrenceId = `rec_${template.id}_${next}`;
+      if (!matterById(occurrenceId)) {
+        const copy = cloneData(template);
+        copy.id = occurrenceId;
+        copy.no = `${template.no}-${next.slice(5).replace('-','')}`;
+        copy.due = next;
+        copy.status = 'green'; copy.reason = ''; copy.steps = []; copy.files = [];
+        copy.recurrence = 'none'; copy.recurrenceSource = template.id;
+        copy.handoff = null; copy.deletedAt = null;
+        matters.push(copy);
+        addLogKey(copy.id, u.id, 'detail.entry.new', { no:copy.no, area:areaName(copy.area) });
+      }
+      next = advanceRecurringDate(next, template.recurrence);
+      changed = true;
+    }
+    template.recurrenceNext = next;
+  });
+  return changed;
+}
+
+function deliverDeadlineReminders() {
+  const u = currentUser();
+  if (!u || typeof Notification === 'undefined' || Notification.permission !== 'granted' || !systemNotice.enabled) return;
+  const day = iso(today());
+  reminderItems(u).forEach(item => {
+    const key = `deadline:${u.id}:${item.matter.id}:${day}`;
+    if (systemNotice.seen.has(key)) return;
+    systemNotice.seen.add(key);
+    new Notification(ft('reminders'), { body:`${item.kind}: ${L(item.matter.title)} · ${fmtDate(item.matter.due)}`, tag:key });
+  });
+  saveSystemSeen();
+}
+
 /* ------------------------------ 小工具 ------------------------------ */
 
 function esc(s) {
@@ -1514,11 +1628,14 @@ function navFor(route) {
     ['#/', 'nav.dashboard'],
     ['#/matters', 'nav.matters'],
     ['#/weekly', 'nav.weekly'],
+    ['#/calendar', null, ft('calendar')],
+    ['#/followups', null, ft('followups')],
+    ['#/team', null, ft('team')],
     ['#/inbox', 'nav.inbox'],
     ['#/settings', 'nav.settings'],
     ['#/trash', 'nav.trash'],
   ];
-  return items.map(([href, key]) => {
+  return items.map(([href, key, label]) => {
     const active = (href === '#/' && (route === '/' || route === '')) || (href !== '#/' && route.startsWith(href.slice(1)));
     let badge = '';
     if (key === 'nav.matters') badge = `<span class="nav-count">${visibleMatters(currentUser()).length}</span>`;
@@ -1526,7 +1643,7 @@ function navFor(route) {
       const unread = unreadNotifications(currentUser()).length;
       if (unread) badge = `<span class="nav-count unread-count">${unread}</span>`;
     }
-    return `<a href="${href}" class="${active ? 'active' : ''}"><span class="nav-label">${esc(t(key))}${badge}</span></a>`;
+    return `<a href="${href}" class="${active ? 'active' : ''}"><span class="nav-label">${esc(label || t(key))}${badge}</span></a>`;
   }).join('');
 }
 
@@ -1553,7 +1670,8 @@ function shell(route, content) {
   <div class="page">
     ${CAN_PERSIST ? '' : `<div class="warn">${esc(t('banner.noStorage'))}</div>`}
     ${content}
-  </div>`;
+  </div>
+  <button class="quick-add-fab" type="button" data-action="quick-matter" title="${esc(ft('quick'))}" aria-label="${esc(ft('quick'))}">＋</button>`;
 }
 
 /* ------------------------------ 视图：工作台 ------------------------------ */
@@ -1565,6 +1683,7 @@ function viewDashboard() {
   const dueWeek = list.filter(m => isThisWeek(m.due));
   const waitingMe = list.filter(m => m.waiting === u.id || (USER[m.nextOwner] && m.nextOwner === u.id));
   const hot = sorted(list.filter(m => m.status === 'red' || m.status === 'yellow'));
+  const reminders = reminderItems(u);
   const hour = new Date().getHours();
   const greetKey = hour < 11 ? 'dash.morning' : hour < 18 ? 'dash.afternoon' : 'dash.evening';
   const greet = t(greetKey, { name: u.name.split(' ')[0] });
@@ -1607,9 +1726,61 @@ function viewDashboard() {
       </div>
       <div class="rows">${rows}</div>
     </div>
+    <div class="card reminder-card">
+      <div class="section-title">${esc(ft('reminders'))}</div>
+      ${reminders.length ? reminders.slice(0, 8).map(x => `<button class="reminder-row" type="button" data-action="open-matter" data-id="${x.matter.id}">
+        <span class="reminder-kind">${esc(x.kind)}</span><span><b>${esc(L(x.matter.title))}</b><small>${esc(L(x.matter.client))} · ${fmtDate(x.matter.due)}</small></span>
+      </button>`).join('') : `<div class="empty compact">${esc(ft('remindersEmpty'))}</div>`}
+    </div>
     <div class="legend">
       <span>${esc(t('legend.green'))}</span><span>${esc(t('legend.yellow'))}</span><span>${esc(t('legend.red'))}</span>
     </div>`;
+}
+
+function viewCalendar() {
+  const base = today();
+  base.setDate(1); base.setMonth(base.getMonth() + state.calendarOffset);
+  const year = base.getFullYear(), month = base.getMonth();
+  const first = new Date(year, month, 1);
+  const start = new Date(first); start.setDate(first.getDate() - first.getDay());
+  const names = lang === 'zh' ? ['日','一','二','三','四','五','六'] : (lang === 'es' ? ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']);
+  const list = visibleMatters(currentUser());
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const key = iso(d), items = list.filter(m => m.due === key);
+    cells.push(`<div class="calendar-cell ${d.getMonth() !== month ? 'outside' : ''} ${key === iso(today()) ? 'is-today' : ''}">
+      <div class="calendar-date">${d.getDate()}</div>
+      ${items.slice(0,4).map(m => `<button type="button" class="calendar-item status-${esc(m.status)}" data-action="open-matter" data-id="${m.id}">${esc(L(m.title))}</button>`).join('')}
+      ${items.length > 4 ? `<div class="small muted">+${items.length - 4}</div>` : ''}
+    </div>`);
+  }
+  return `<div class="page-head"><div><h1>${esc(ft('calendar'))}</h1><div class="desc">${year}-${String(month + 1).padStart(2,'0')}</div></div>
+    <div class="right"><button class="btn" data-action="calendar-prev">‹ ${esc(ft('previous'))}</button><button class="btn" data-action="calendar-today">${esc(ft('today'))}</button><button class="btn" data-action="calendar-next">${esc(ft('nextMonth'))} ›</button></div></div>
+    <div class="calendar-wrap"><div class="calendar-grid calendar-head">${names.map(n => `<div>${esc(n)}</div>`).join('')}</div><div class="calendar-grid">${cells.join('')}</div></div>`;
+}
+
+function viewFollowups() {
+  const list = followupItems(currentUser());
+  return `<div class="page-head"><div><h1>${esc(ft('followups'))}</h1><div class="desc">${esc(ft('waitingClient'))}</div></div></div>
+    <div class="card followup-list">${list.length ? list.map(x => `<div class="followup-row">
+      <button class="followup-main" data-action="open-matter" data-id="${x.matter.id}"><b>${esc(L(x.matter.client))}</b><span>${esc(L(x.matter.title))} · ${esc(x.kind)}</span><small>${esc(ft('lastContact'))}: ${x.matter.lastContact ? fmtDate(x.matter.lastContact) : '—'}</small></button>
+      <button class="btn btn-primary btn-sm" data-action="mark-contacted" data-id="${x.matter.id}">${esc(ft('contactNow'))}</button>
+    </div>`).join('') : `<div class="empty">${esc(ft('followupEmpty'))}</div>`}</div>`;
+}
+
+function viewTeamWorkload() {
+  const list = visibleMatters(currentUser());
+  const cards = USERS.map(u => {
+    const own = list.filter(m => m.owner === u.id || m.nextOwner === u.id);
+    const red = own.filter(m => m.status === 'red').length;
+    const overdue = own.filter(m => daysFromToday(m.due) < 0).length;
+    const waiting = own.filter(m => m.waiting !== 'none').length;
+    return `<div class="workload-card"><div class="workload-person"><span class="avatar">${esc(u.short)}</span><b>${esc(u.name)}</b></div>
+      <div class="workload-value">${own.length}</div><div class="small muted">${esc(ft('workloadOpen'))}</div>
+      <div class="workload-stats"><span>${esc(ft('workloadRed'))} <b>${red}</b></span><span>${esc(ft('workloadOverdue'))} <b>${overdue}</b></span><span>${esc(ft('workloadWaiting'))} <b>${waiting}</b></span></div></div>`;
+  }).join('');
+  return `<div class="page-head"><div><h1>${esc(ft('team'))}</h1><div class="desc">${esc(ft('workloadOpen'))}</div></div></div><div class="workload-grid">${cards}</div>`;
 }
 
 /* ------------------------------ 视图：事项列表 ------------------------------ */
@@ -1788,6 +1959,9 @@ function viewMatter(id) {
   const waitField = selectWithCustom('data-field="waiting"', m.waiting, waitingOptions(), t('form.customWaitPh'));
   const statusOpts = Object.keys(STATUS).map(k => `<option value="${k}" ${m.status === k ? 'selected' : ''}>${STATUS[k].dot} ${esc(statusName(k))}</option>`).join('');
   const canEditMatter = u.id === m.owner;
+  const recurrenceOpts = [['none',ft('recurrenceNone')],['weekly',ft('recurrenceWeekly')],['monthly',ft('recurrenceMonthly')]]
+    .map(([v,n]) => `<option value="${v}" ${(m.recurrence || 'none') === v ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  const handoff = m.handoff && !m.handoff.acceptedAt ? m.handoff : null;
 
   const teamBoxes = USERS.map(x => `
     <label class="member-item">
@@ -1827,6 +2001,8 @@ function viewMatter(id) {
             <div class="field"><label>${esc(t('detail.due'))}</label><input type="date" data-field="due" value="${esc(m.due || '')}"></div>
             <div class="field"><label>${esc(t('detail.waiting'))}</label>${waitField}</div>
             <div class="field"><label>${esc(t('detail.lastContact'))}</label><input type="date" data-field="lastContact" value="${esc(m.lastContact || '')}"></div>
+            <div class="field"><label>${esc(ft('recurrence'))}</label><select data-field="recurrence">${recurrenceOpts}</select></div>
+            <div class="field"><label>${esc(ft('recurrenceUntil'))}</label><input type="date" data-field="recurrenceUntil" value="${esc(m.recurrenceUntil || '')}"></div>
           </div>
           <div class="field"><label>${esc(t('detail.next'))}</label><input data-field="next" value="${esc(L(m.next))}"></div>
           <div class="field"><label>${esc(t('detail.reason'))}</label><input data-field="reason" value="${esc(L(m.reason))}" placeholder="${esc(t('detail.reasonPh'))}"></div>
@@ -1846,6 +2022,7 @@ function viewMatter(id) {
       </div>
       <div>
         <div class="card card-pad" style="margin-bottom:16px">
+          ${handoff ? `<div class="handoff-banner"><div><b>${esc(ft('handoffPending', { name:(USER[handoff.to] || {}).name || handoff.to }))}</b><span>${esc((USER[handoff.from] || {}).name || handoff.from)} → ${esc((USER[handoff.to] || {}).name || handoff.to)}</span></div>${u.id === handoff.to ? `<button class="btn btn-sm btn-primary" data-action="accept-handoff" data-id="${m.id}">${esc(ft('handoffAccept'))}</button>` : ''}</div>` : ''}
           <div class="section-title">${esc(t('detail.step.title'))}
             <span class="tag" style="margin-left:auto">${esc((USER[m.nextOwner] || {}).name || m.nextOwner)}</span>
           </div>
@@ -2184,6 +2361,7 @@ function renderModal() {
   const mo = state.modal;
   if (!mo) return '';
   if (mo.type === 'new-matter') return modalNewMatter();
+  if (mo.type === 'quick-matter') return modalQuickMatter();
   if (mo.type === 'file') return modalFile(mo);
   if (mo.type === 'chat') return modalChat(mo);
   if (mo.type === 'complete-step') return modalCompleteStep(mo);
@@ -2193,6 +2371,16 @@ function renderModal() {
   if (mo.type === 'import') return modalImport();
   if (mo.type === 'import-invalid') return modalImportInvalid();
   return '';
+}
+
+function modalQuickMatter() {
+  const due = new Date(); due.setDate(due.getDate() + 7);
+  return modalFrame(ft('quick'), `<form id="quick-form" data-action="create-quick-matter">
+    <div class="grid-2"><div class="field"><label class="req">${esc(t('detail.client'))}</label><input name="client" required></div>
+    <div class="field"><label class="req">${esc(t('detail.title'))}</label><input name="title" required></div>
+    <div class="field"><label class="req">${esc(t('detail.due'))}</label><input type="date" name="due" value="${iso(due)}" required></div>
+    <div class="field"><label class="req">${esc(t('detail.next'))}</label><input name="next" required></div></div></form>`,
+    `<button class="btn" type="button" data-action="close-modal">${esc(t('modal.cancel'))}</button><button class="btn btn-primary" type="submit" form="quick-form">${esc(ft('quickSubmit'))}</button>`);
 }
 
 function modalImport() {
@@ -2226,6 +2414,8 @@ function modalNewMatter() {
             <div class="field"><label class="req">${esc(t('detail.status'))}</label><select name="status">${statusOpts}</select></div>
             <div class="field"><label class="req">${esc(t('detail.due'))}</label><input type="date" name="due" required></div>
             <div class="field"><label>${esc(t('detail.waiting'))}</label>${waitField}</div>
+            <div class="field"><label>${esc(ft('recurrence'))}</label><select name="recurrence"><option value="none">${esc(ft('recurrenceNone'))}</option><option value="weekly">${esc(ft('recurrenceWeekly'))}</option><option value="monthly">${esc(ft('recurrenceMonthly'))}</option></select></div>
+            <div class="field"><label>${esc(ft('recurrenceUntil'))}</label><input type="date" name="recurrenceUntil"></div>
           </div>
           <div class="field"><label class="req">${esc(t('detail.next'))}</label><input name="next" required></div>
           <div class="field"><label>${esc(t('detail.nextOwner'))}</label><select name="nextOwner">${nextOwnerOpts}</select></div>
@@ -2270,6 +2460,9 @@ function render() {
   else if (route.startsWith('/matters/')) content = viewMatter(route.split('/')[2]);
   else if (route.startsWith('/matters')) content = viewMatters();
   else if (route.startsWith('/weekly')) content = viewWeekly();
+  else if (route.startsWith('/calendar')) content = viewCalendar();
+  else if (route.startsWith('/followups')) content = viewFollowups();
+  else if (route.startsWith('/team')) content = viewTeamWorkload();
   else if (route.startsWith('/inbox')) content = viewInbox();
   else if (route.startsWith('/settings')) content = viewSettings();
   else if (route.startsWith('/trash')) content = viewTrash();
@@ -2332,6 +2525,7 @@ function completeStep(id, data) {
   m.waiting = waiting || 'none';
   m.next = String(data.next).trim();
   m.nextOwner = data.nextOwner || m.nextOwner;
+  m.handoff = m.nextOwner !== u.id ? { from:u.id, to:m.nextOwner, at:Date.now(), acceptedAt:null } : null;
   if (String(data.reason || '') !== L(m.reason)) m.reason = data.reason || '';
   if (Array.isArray(data.team) && data.team.length) {
     m.team = data.team.slice();
@@ -2379,6 +2573,7 @@ function undoStep(id) {
     if (s.prev.team) m.team = s.prev.team.slice();
   }
   m.steps = (m.steps || []).filter(x => x !== s);
+  m.handoff = null;
   addLogKey(id, u.id, 'detail.entry.stepUndo', { text: s.text }, {
     key: 'inbox.stepUndo',
     vars: noticeVars(m, u.id, { step: s.text, owner: (USER[s.owner] || {}).name || s.owner }),
@@ -2405,9 +2600,11 @@ function createMatter(data) {
     stage: stage || STAGES[0], status: data.status, reason: data.reason || '',
     next: data.next, nextOwner: data.nextOwner || data.owner,
     due: data.due, waiting: waiting || 'none',
+    recurrence: data.recurrence || 'none', recurrenceUntil: data.recurrenceUntil || '',
     importStatusError: !!data.importStatusError,
     files: [], lastContact: iso(today()), notes: '',
   };
+  if (m.recurrence !== 'none') m.recurrenceNext = advanceRecurringDate(m.due, m.recurrence);
   if (!m.team.includes(m.owner)) m.team.push(m.owner);
   matters.push(m);
   addLogKey(id, currentUser().id, 'detail.entry.new', { no: m.no, area: areaName(m.area) }, {
@@ -2441,6 +2638,7 @@ function saveMatterFromDom(id) {
     client: L(m.client), title: L(m.title), next: L(m.next), reason: L(m.reason), notes: L(m.notes),
     area: m.area, stage: m.stage, owner: m.owner, nextOwner: m.nextOwner, status: m.status,
     due: m.due, waiting: m.waiting, lastContact: m.lastContact,
+    recurrence: m.recurrence || 'none', recurrenceUntil: m.recurrenceUntil || '',
   };
 
   // 选了「自定义…」就必须填内容，先校验再改数据
@@ -2449,7 +2647,7 @@ function saveMatterFromDom(id) {
       (get('waiting') === '__custom__' && !String(get('waitingCustom') || '').trim())) {
     toast(t('toast.needCustom')); return;
   }
-  ['client', 'title', 'area', 'stage', 'owner', 'nextOwner', 'status', 'due', 'waiting', 'lastContact', 'next', 'reason', 'notes'].forEach(f => {
+  ['client', 'title', 'area', 'stage', 'owner', 'nextOwner', 'status', 'due', 'waiting', 'lastContact', 'recurrence', 'recurrenceUntil', 'next', 'reason', 'notes'].forEach(f => {
     let v;
     if (f === 'area' || f === 'stage' || f === 'waiting') {
       v = resolveCustom(get(f), get(f + 'Custom'));
@@ -2473,6 +2671,8 @@ function saveMatterFromDom(id) {
   if (before.due !== m.due) addLogKey(id, currentUser().id, 'detail.entry.due', { date: { __date: m.due }, rel: { __rel: m.due } });
   if (before.owner !== m.owner) addLogKey(id, currentUser().id, 'detail.entry.owner', { name: USER[m.owner].name });
   if (before.waiting !== m.waiting) addLogKey(id, currentUser().id, 'detail.entry.waiting', { w: { __t: 'wait.' + m.waiting } });
+  if (before.nextOwner !== m.nextOwner) m.handoff = m.nextOwner !== currentUser().id ? { from:currentUser().id, to:m.nextOwner, at:Date.now(), acceptedAt:null } : null;
+  if (before.recurrence !== m.recurrence || before.due !== m.due) m.recurrenceNext = m.recurrence && m.recurrence !== 'none' ? advanceRecurringDate(m.due, m.recurrence) : '';
   if (changes.length) {
     const editLog = addLogKey(id, currentUser().id, 'detail.entry.edited', {}, {
       key: 'inbox.edited',
@@ -2558,6 +2758,27 @@ document.addEventListener('click', ev => {
       break;
     case 'new-matter':
       state.modal = { type: 'new-matter' }; render(); break;
+    case 'quick-matter':
+      state.modal = { type: 'quick-matter' }; render(); break;
+    case 'calendar-prev': state.calendarOffset -= 1; render(); break;
+    case 'calendar-next': state.calendarOffset += 1; render(); break;
+    case 'calendar-today': state.calendarOffset = 0; render(); break;
+    case 'mark-contacted': {
+      const m = matterById(el.getAttribute('data-id'));
+      if (!m || !canSee(currentUser(), m)) break;
+      m.lastContact = iso(today());
+      addLogKey(m.id, currentUser().id, 'detail.entry.edited');
+      commit(); render();
+      break;
+    }
+    case 'accept-handoff': {
+      const m = matterById(el.getAttribute('data-id'));
+      if (!m || !m.handoff || m.handoff.to !== currentUser().id || m.handoff.acceptedAt) break;
+      m.handoff.acceptedAt = Date.now(); m.handoff.acceptedBy = currentUser().id;
+      addLogKey(m.id, currentUser().id, 'detail.entry.edited');
+      commit(); render(); toast(ft('handoffAccepted'));
+      break;
+    }
     case 'close-modal':
       state.modal = null; render(); break;
     case 'close-security-notice': {
@@ -3055,6 +3276,12 @@ document.addEventListener('submit', async ev => {
   }
   if (action === 'create-matter') {
     const data = readForm(form);
+    const m = createMatter(data);
+    if (m) { state.modal = null; go(`#/matters/${m.id}`); render(); }
+  }
+  if (action === 'create-quick-matter') {
+    const data = readForm(form);
+    Object.assign(data, { area:'other', owner:currentUser().id, nextOwner:currentUser().id, stage:STAGES[0], status:'green', waiting:'none', recurrence:'none', team:[currentUser().id] });
     const m = createMatter(data);
     if (m) { state.modal = null; go(`#/matters/${m.id}`); render(); }
   }
